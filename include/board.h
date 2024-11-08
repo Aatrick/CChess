@@ -3,8 +3,10 @@
 
 #include <stdint.h>
 
-void print_bitboard(const char* current_position, const char* next_position);
-char* bitboard_to_chess_position(uint64_t bitboard);
-uint64_t chess_position_to_bitboard(const char* position);
+int chess_to_bitboard_index(const char* position);
+void place_pieces(char* board, uint64_t bitboard, char piece);
+void print_board();
+void move_piece(const char* current_position, const char* next_position);
+void initialize_board();
 
 #endif
