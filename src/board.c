@@ -82,8 +82,7 @@ void move_piece(const char* current_position, const char* next_position) {
         if (isupper(board[63 - next_index]) && isupper(board[63 - current_index]) || islower(board[63 - next_index]) && islower(board[63 - current_index])){
             printf("illegal move\n\n");
         }
-        else {//TODO: disable the ability to go through a piece
-
+        else {
             // PAWNS
             if (board[63 - current_index] == 'p' || board[63 - current_index] == 'P') {
                 int end_line[] = {63,62,61,60,59,58,57,56,0,1,2,3,4,5,6,7};
@@ -131,26 +130,30 @@ void move_piece(const char* current_position, const char* next_position) {
                 int vertical[] = {current_index + 8, current_index + 16, current_index + 24, current_index + 32, current_index + 40, current_index + 48, current_index + 56, current_index + 64, current_index - 8, current_index - 16, current_index - 24, current_index - 32, current_index - 40, current_index - 48, current_index - 56, current_index - 64};
                 int horizontal[] = {current_index + 8, current_index + 1, current_index + 2, current_index + 3, current_index + 4, current_index + 5, current_index + 6, current_index + 7, current_index - 8, current_index - 1, current_index - 2, current_index - 3, current_index - 4, current_index - 5, current_index - 6, current_index - 7};
                 if (val_in_array(next_index, vertical, 16) == 1 || val_in_array(next_index, horizontal, 16)){
-                    int index_curr = (current_index - (current_index % 8))/8;
-                    int index_next = (next_index - (next_index % 8))/8;
-                    int all_g = 0;
-                    // if (index_curr < index_next){
-                    //     for (int i = index_curr; i < index_next; i++){
-                    //         if (board[63 - (8 * i + (current_index % 8))] != '.'){
-                    //             all_g = 1;
-                    //         }
-                    //     }
-                    // }
-                    // if (index_next < index_curr){
-                    //     for (int i = index_next; i < index_curr; i++){
-                    //         if (board[63 - (8 * i + (current_index % 8))] != '.'){
-                    //             all_g = 1;
-                    //         }
-                    //     }
-                    // }
+                    int shift_curr = (current_index % 8);
+                    int shift_next = (next_index % 8);
+                    int all_g = 0; // if a piece is in the way, this will be 1
+                    if (current_index < next_index){
+                        for (int i = current_index + 8; i < next_index; i += 8){
+                            if (board[63 - i] != '.'){
+                                all_g = 1;
+                            }
+                        }
+                    }
+                    else {
+                        for (int i = current_index - 8; i > next_index; i -= 8){
+                            if (board[63 - i] != '.'){
+                                all_g = 1;
+                            }
+                        }
+                    }
+                    
                     if (all_g == 0){
                         board[63 - next_index] = board[63 - current_index];
                         board[63 - current_index] = '.';
+                    }
+                    else {
+                        printf("Illegal move\n\n");
                     }
                 }
             }
