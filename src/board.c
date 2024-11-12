@@ -130,6 +130,8 @@ void move_piece(const char* current_position, const char* next_position) {
                 int vertical[] = {current_index + 8, current_index + 16, current_index + 24, current_index + 32, current_index + 40, current_index + 48, current_index + 56, current_index + 64, current_index - 8, current_index - 16, current_index - 24, current_index - 32, current_index - 40, current_index - 48, current_index - 56, current_index - 64};
                 int horizontal[] = {current_index + 8, current_index + 1, current_index + 2, current_index + 3, current_index + 4, current_index + 5, current_index + 6, current_index + 7, current_index - 8, current_index - 1, current_index - 2, current_index - 3, current_index - 4, current_index - 5, current_index - 6, current_index - 7};
                 if (val_in_array(next_index, vertical, 16) == 1 || val_in_array(next_index, horizontal, 16)){
+                    int shift_curr = (current_index % 8);
+                    int shift_next = (next_index % 8);
                     int all_g = 0;
                     if (current_index < next_index){
                         for (int i = current_index + 8; i < next_index; i += 8){
@@ -138,7 +140,21 @@ void move_piece(const char* current_position, const char* next_position) {
                             }
                         }
                     }
-                    else {
+                    if (shift_next > shift_curr){
+                            for (int i = current_index + 1; i < next_index; i++){
+                                if (board[63 - i] != '.'){
+                                    all_g = 1;
+                                }
+                            }
+                        }
+                    if (shift_next < shift_curr){
+                        for (int i = current_index - 1; i < next_index; i--){
+                            if (board[63 - i] != '.'){
+                                all_g = 1;
+                            }
+                        }
+                    }
+                    if (current_index > next_index) {
                         for (int i = current_index - 8; i > next_index; i -= 8){
                             if (board[63 - i] != '.'){
                                 all_g = 1;
@@ -170,6 +186,7 @@ void move_piece(const char* current_position, const char* next_position) {
                 int right_top[] = {current_index + 7, current_index + 14, current_index + 21, current_index + 28, current_index + 35, current_index + 42, current_index + 49, current_index + 56, current_index + 63};
                 int left_bot[] = {current_index - 7, current_index - 14, current_index - 21, current_index - 28, current_index - 35, current_index - 42, current_index - 49, current_index - 56, current_index - 63};
                 int right_bot[] = {current_index - 9, current_index - 18, current_index - 27, current_index - 36, current_index - 45, current_index - 54, current_index - 63};
+                
                 if (val_in_array(next_index, left_top, 7) == 1 || val_in_array(next_index, right_top, 9) == 1 || val_in_array(next_index, left_bot, 9) == 1 || val_in_array(next_index, right_bot, 7)){
                     int shift_curr = (current_index % 8);
                     int shift_next = (next_index % 8);
