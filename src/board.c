@@ -207,13 +207,13 @@ void move_piece(const char* current_position, const char* next_position) {
                         }
                     } else {
                         if (shift_next > shift_curr){
-                            for (int i = current_index - 7; i < next_index; i -= 7){
+                            for (int i = current_index - 7; i > next_index; i -= 7){
                                 if (board[63 - i] != '.'){
                                     all_g = 1;
                                 }
                             }
                         } if (shift_next < shift_curr){
-                            for (int i = current_index + 9; i < next_index; i -= 9){
+                            for (int i = current_index - 9; i > next_index; i -= 9){
                                 if (board[63 - i] != '.'){
                                     all_g = 1;
                                 }
@@ -230,6 +230,102 @@ void move_piece(const char* current_position, const char* next_position) {
                 }
             }
             // QUEEN
+            if (board[63 - current_index] == 'q' || board[63 - current_index] == 'Q') {
+                int vertical[] = {current_index + 8, current_index + 16, current_index + 24, current_index + 32, current_index + 40, current_index + 48, current_index + 56, current_index + 64, current_index - 8, current_index - 16, current_index - 24, current_index - 32, current_index - 40, current_index - 48, current_index - 56, current_index - 64};
+                int horizontal[] = {current_index + 1, current_index + 2, current_index + 3, current_index + 4, current_index + 5, current_index + 6, current_index + 7, current_index - 1, current_index - 2, current_index - 3, current_index - 4, current_index - 5, current_index - 6, current_index - 7};
+                int left_top[] = {current_index + 9, current_index + 18, current_index + 27, current_index + 36, current_index + 45, current_index + 54, current_index + 63};
+                int right_top[] = {current_index + 7, current_index + 14, current_index + 21, current_index + 28, current_index + 35, current_index + 42, current_index + 49, current_index + 56, current_index + 63};
+                int left_bot[] = {current_index - 7, current_index - 14, current_index - 21, current_index - 28, current_index - 35, current_index - 42, current_index - 49, current_index - 56, current_index - 63};
+                int right_bot[] = {current_index - 9, current_index - 18, current_index - 27, current_index - 36, current_index - 45, current_index - 54, current_index - 63};
+
+                if (val_in_array(next_index, vertical, 16) == 1 || val_in_array(next_index, horizontal, 16) == 1 || val_in_array(next_index, left_top, 7) == 1 || val_in_array(next_index, right_top, 9) == 1 || val_in_array(next_index, left_bot, 9) == 1 || val_in_array(next_index, right_bot, 7)) {
+                    int shift_curr = (current_index % 8);
+                    int shift_next = (next_index % 8);
+                    int all_g = 0;
+
+                    // Check vertical movement
+                    if (current_index < next_index && shift_curr == shift_next) {
+                        for (int i = current_index + 8; i < next_index; i += 8) {
+                            if (board[63 - i] != '.') {
+                                all_g = 1;
+                                break;
+                            }
+                        }
+                    } else if (current_index > next_index && shift_curr == shift_next) {
+                        for (int i = current_index - 8; i > next_index; i -= 8) {
+                            if (board[63 - i] != '.') {
+                                all_g = 1;
+                                break;
+                            }
+                        }
+                    }
+
+                    // Check horizontal movement
+                    if (shift_next > shift_curr && current_index / 8 == next_index / 8) {
+                        for (int i = current_index + 1; i < next_index; i++) {
+                            if (board[63 - i] != '.') {
+                                all_g = 1;
+                                break;
+                            }
+                        }
+                    } else if (shift_next < shift_curr && current_index / 8 == next_index / 8) {
+                        for (int i = current_index - 1; i > next_index; i--) {
+                            if (board[63 - i] != '.') {
+                                all_g = 1;
+                                break;
+                            }
+                        }
+                    }
+
+                    // Check diagonal movement
+                    if (current_index < next_index) {
+                        if (shift_next > shift_curr) {
+                            for (int i = current_index + 9; i < next_index; i += 9) {
+                                if (board[63 - i] != '.') {
+                                    all_g = 1;
+                                    break;
+                                }
+                            }
+                        } else if (shift_next < shift_curr) {
+                            for (int i = current_index + 7; i < next_index; i += 7) {
+                                if (board[63 - i] != '.') {
+                                    all_g = 1;
+                                    break;
+                                }
+                            }
+                        }
+                    } else {
+                        if (shift_next > shift_curr) {
+                            for (int i = current_index - 7; i > next_index; i -= 7) {
+                                if (board[63 - i] != '.') {
+                                    all_g = 1;
+                                    break;
+                                }
+                            }
+                        } else if (shift_next < shift_curr) {
+                            for (int i = current_index - 9; i > next_index; i -= 9) {
+                                if (board[63 - i] != '.') {
+                                    all_g = 1;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+
+                    if (all_g == 0) {
+                        board[63 - next_index] = board[63 - current_index];
+                        board[63 - current_index] = '.';
+                    } else {
+                        printf("Illegal move\n\n");
+                    }
+                } else {
+                    printf("Illegal move\n\n");
+                }
+            }
+            // KING
+            if (board[63 - current_index] == 'k' || board[63 - current_index] == 'K'){
+                
+            }
         }
     }
 }
