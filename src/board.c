@@ -148,12 +148,6 @@ int is_square_under_attack(int square, char attacking_side) {
     return 0;
 }
 
-// Function to check if the king is in check
-int is_king_in_check(char king) {
-    // you would need to check all possible attacks from the opponent's pieces
-    return 0;
-}
-
 // Function to move a piece on the board
 void move_piece(const char* current_position, const char* next_position) {
     int current_index = chess_to_bitboard_index(current_position);
@@ -403,13 +397,9 @@ void move_piece(const char* current_position, const char* next_position) {
                 }
             }
             // KING
-            if (board[63 - current_index] == 'k' || board[63 - current_index] == 'K'){// TODO: Rock the king
-                int circle[] = {current_index + 1, current_index - 1, current_index + 8, current_index + 9, current_index + 7, current_index - 9, current_index - 8, current_index - 7};
-                if (val_in_array(next_index, circle, 8) == 1){
-                    board[63 - next_index] = board[63 - current_index];
-                    board[63 - current_index] = '.';
-                } // King side castling
-                if (current_index == chess_to_bitboard_index("E8") && next_index == chess_to_bitboard_index("G8") && board[63 - current_index] == 'k' && board[63 - next_index] == '.' && board[63 - chess_to_bitboard_index("F8")] == '.' && board[63 - chess_to_bitboard_index("H8")] == 'r' && black_king_moved == 0 && black_rook_kingside_moved == 0 && is_square_under_attack(chess_to_bitboard_index("F8"), 'w') == 0 && is_square_under_attack(chess_to_bitboard_index("G8"), 'w') == 0){
+            if (board[63 - current_index] == 'k' || board[63 - current_index] == 'K'){
+                // King side castling
+                if (is_square_under_attack(chess_to_bitboard_index("E8"), 'b') == 0 && (current_index == chess_to_bitboard_index("E8") && next_index == chess_to_bitboard_index("G8") && board[63 - current_index] == 'k' && board[63 - next_index] == '.' && board[63 - chess_to_bitboard_index("F8")] == '.' && board[63 - chess_to_bitboard_index("H8")] == 'r' && black_king_moved == 0 && black_rook_kingside_moved == 0 && is_square_under_attack(chess_to_bitboard_index("F8"), 'b') == 0 && is_square_under_attack(chess_to_bitboard_index("G8"), 'b') == 0)){
                     board[63 - next_index] = board[63 - current_index];
                     board[63 - current_index] = '.';
                     board[63 - chess_to_bitboard_index("F8")] = board[63 - chess_to_bitboard_index("H8")];
@@ -417,7 +407,7 @@ void move_piece(const char* current_position, const char* next_position) {
                     black_king_moved = 1;
                     black_rook_kingside_moved = 1;
                 } // Queen side castling
-                if (current_index == chess_to_bitboard_index("E8") && next_index == chess_to_bitboard_index("C8") && board[63 - current_index] == 'k' && board[63 - next_index] == '.' && board[63 - chess_to_bitboard_index("D8")] == '.' && board[63 - chess_to_bitboard_index("A8")] == 'r' && board[63 - chess_to_bitboard_index("B8")] == '.' && black_king_moved == 0 && black_rook_queenside_moved == 0, is_square_under_attack(chess_to_bitboard_index("D8"), 'w') == 0 && is_square_under_attack(chess_to_bitboard_index("C8"), 'w') == 0){
+                if (is_square_under_attack(chess_to_bitboard_index("E8"), 'b') == 0 && (current_index == chess_to_bitboard_index("E8") && next_index == chess_to_bitboard_index("C8") && board[63 - current_index] == 'k' && board[63 - next_index] == '.' && board[63 - chess_to_bitboard_index("D8")] == '.' && board[63 - chess_to_bitboard_index("A8")] == 'r' && board[63 - chess_to_bitboard_index("B8")] == '.' && black_king_moved == 0 && black_rook_queenside_moved == 0, is_square_under_attack(chess_to_bitboard_index("D8"), 'b') == 0 && is_square_under_attack(chess_to_bitboard_index("C8"), 'b') == 0)){
                     board[63 - next_index] = board[63 - current_index];
                     board[63 - current_index] = '.';
                     board[63 - chess_to_bitboard_index("D8")] = board[63 - chess_to_bitboard_index("A8")];
@@ -425,7 +415,7 @@ void move_piece(const char* current_position, const char* next_position) {
                     black_king_moved = 1;
                     black_rook_queenside_moved = 1;
                 } // King side castling
-                if (current_index == chess_to_bitboard_index("E1") && next_index == chess_to_bitboard_index("G1") && board[63 - current_index] == 'K' && board[63 - next_index] == '.' && board[63 - chess_to_bitboard_index("F1")] == '.' && board[63 - chess_to_bitboard_index("H1")] == 'R' && white_king_moved == 0 && white_rook_kingside_moved == 0 && is_square_under_attack(chess_to_bitboard_index("F1"), 'b') == 0 && is_square_under_attack(chess_to_bitboard_index("G1"), 'b') == 0){
+                if (is_square_under_attack(chess_to_bitboard_index("E1"), 'w') == 0 && (current_index == chess_to_bitboard_index("E1") && next_index == chess_to_bitboard_index("G1") && board[63 - current_index] == 'K' && board[63 - next_index] == '.' && board[63 - chess_to_bitboard_index("F1")] == '.' && board[63 - chess_to_bitboard_index("H1")] == 'R' && white_king_moved == 0 && white_rook_kingside_moved == 0 && is_square_under_attack(chess_to_bitboard_index("F1"), 'w') == 0 && is_square_under_attack(chess_to_bitboard_index("G1"), 'w') == 0)){
                     board[63 - next_index] = board[63 - current_index];
                     board[63 - current_index] = '.';
                     board[63 - chess_to_bitboard_index("F1")] = board[63 - chess_to_bitboard_index("H1")];
@@ -433,17 +423,19 @@ void move_piece(const char* current_position, const char* next_position) {
                     white_king_moved = 1;
                     white_rook_kingside_moved = 1;
                 } // Queen side castling
-                if (current_index == chess_to_bitboard_index("E1") && next_index == chess_to_bitboard_index("C1") && board[63 - current_index] == 'K' && board[63 - next_index] == '.' && board[63 - chess_to_bitboard_index("D1")] == '.' && board[63 - chess_to_bitboard_index("A1")] == 'R' && board[63 - chess_to_bitboard_index("B1")] == '.' && white_king_moved == 0 && white_rook_queenside_moved == 0, is_square_under_attack(chess_to_bitboard_index("D1"), 'b') == 0 && is_square_under_attack(chess_to_bitboard_index("C1"), 'b') == 0){
-                    board[63 - next_index] = board[63 - current_index];
+                if (is_square_under_attack(chess_to_bitboard_index("E1"), 'w') == 0 && (current_index == chess_to_bitboard_index("E1") && next_index == chess_to_bitboard_index("C1") && board[63 - current_index] == 'K' && board[63 - next_index] == '.' && board[63 - chess_to_bitboard_index("D1")] == '.' && board[63 - chess_to_bitboard_index("A1")] == 'R' && board[63 - chess_to_bitboard_index("B1")] == '.' && white_king_moved == 0 && white_rook_queenside_moved == 0, is_square_under_attack(chess_to_bitboard_index("D1"), 'w') == 0 && is_square_under_attack(chess_to_bitboard_index("C1"), 'w') == 0)){
+                    board[63 - next_index] = 'K';
                     board[63 - current_index] = '.';
                     board[63 - chess_to_bitboard_index("D1")] = board[63 - chess_to_bitboard_index("A1")];
                     board[63 - chess_to_bitboard_index("A1")] = '.';
                     white_king_moved = 1;
                     white_rook_queenside_moved = 1;
+                } 
+                int circle[] = {current_index + 1, current_index - 1, current_index + 8, current_index - 8, current_index + 9, current_index + 7, current_index - 7, current_index - 9};
+                if (val_in_array(next_index, circle, 8) == 1){
+                    board[63 - next_index] = board[63 - current_index];
+                    board[63 - current_index] = '.';
                 } else {
-                    printf("Illegal move\n\n");
-                }
-                else {
                     printf("Illegal move\n\n");
                 }
             }
