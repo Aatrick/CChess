@@ -59,6 +59,7 @@ void initialize_board() {
     place_pieces(board, black_kings, 'k');
 }
 
+
 // Function to convert chess notation to bitboard index
 int chess_to_bitboard_index(const char* position) {
     if (strlen(position) != 2) return -1; // Invalid position
@@ -74,6 +75,7 @@ int chess_to_bitboard_index(const char* position) {
     return number_index * 8 + letter_index;
 }
 
+
 int val_in_array(int val, int *arr, size_t n){
     for (size_t i = 0; i<n; i++){
         if(arr[i] == val){
@@ -82,6 +84,7 @@ int val_in_array(int val, int *arr, size_t n){
     }
     return 0;
 }
+
 
 // Function to check if a square is under attack
 int is_square_under_attack(int square, char attacking_side) {
@@ -147,6 +150,8 @@ int is_square_under_attack(int square, char attacking_side) {
 
     return 0;
 }
+
+
 
 // Function to move a piece on the board
 void move_piece(const char* current_position, const char* next_position) {
@@ -442,6 +447,149 @@ void move_piece(const char* current_position, const char* next_position) {
         }
     }
 }
+
+
+int evaluate(const char side){
+    int score_white = 0;
+    int score_black = 0;
+    int white_pawn_count = 0;
+    int white_knight_count = 0;
+    int white_bishop_count = 0;
+    int white_rook_count = 0;
+    int white_queen_count = 0;
+    int white_king_count = 0;
+
+    int black_pawn_count = 0;
+    int black_knight_count = 0;
+    int black_bishop_count = 0;
+    int black_rook_count = 0;
+    int black_queen_count = 0;
+    int black_king_count = 0;
+
+    // apply a score for the position of the pieces by using a board of scores and for the number of pieces
+    int pawn_scores[64] = {
+        0, 0, 0, 0, 0, 0, 0, 0,
+        50, 50, 50, 50, 50, 50, 50, 50,
+        10, 10, 20, 30, 30, 20, 10, 10,
+        5, 5, 10, 25, 25, 10, 5, 5,
+        0, 0, 0, 20, 20, 0, 0, 0,
+        5, -5, -10, 0, 0, -10, -5, 5,
+        5, 10, 10, -20, -20, 10, 10, 5,
+        0, 0, 0, 0, 0, 0, 0, 0
+    };
+    int knight_scores[64] = {
+        -50, -40, -30, -30, -30, -30, -40, -50,
+        -40, -20, 0, 0, 0, 0, -20, -40,
+        -30, 0, 10, 15, 15, 10, 0, -30,
+        -30, 5, 15, 20, 20, 15, 5, -30,
+        -30, 0, 15, 20, 20, 15, 0, -30,
+        -30, 5, 10, 15, 15, 10, 5, -30,
+        -40, -20, 0, 5, 5, 0, -20, -40,
+        -50, -40, -30, -30, -30, -30, -40, -50
+    };
+    int bishop_scores[64] = {
+        -20, -10, -10, -10, -10, -10, -10, -20,
+        -10, 0, 0, 0, 0, 0, 0, -10,
+        -10, 0, 5, 10, 10, 5, 0, -10,
+        -10, 5, 5, 10, 10, 5, 5, -10,
+        -10, 0, 10, 10, 10, 10, 0, -10,
+        -10, 10, 10, 10, 10, 10, 10, -10,
+        -10, 5, 0, 0, 0, 0, 5, -10,
+        -20, -10, -10, -10, -10, -10, -10, -20
+    };
+    int rook_scores[64] = {
+        0, 0, 0, 0, 0, 0, 0, 0,
+        5, 10, 10, 10, 10, 10, 10, 5,
+        -5, 0, 0, 0, 0, 0, 0, -5,
+        -5, 0, 0, 0, 0, 0, 0, -5,
+        -5, 0, 0, 0, 0, 0, 0, -5,
+        -5, 0, 0, 0, 0, 0, 0, -5,
+        -5, 0, 0, 0, 0, 0, 0, -5,
+        0, 0, 0, 5, 5, 0, 0, 0
+    };
+    int queen_scores[64] = {
+        -20, -10, -10, -5, -5, -10, -10, -20,
+        -10, 0, 0, 0, 0, 0, 0, -10,
+        -10, 0, 5, 5, 5, 5, 0, -10,
+        -5, 0, 5, 5, 5, 5, 0, -5,
+        0, 0, 5, 5, 5, 5, 0, -5,
+        -10, 5, 5, 5, 5, 5, 0, -10,
+        -10, 0, 5, 0, 0, 0, 0, -10,
+        -20, -10, -10, -5, -5, -10, -10, -20
+    };
+    int king_scores[64] = {
+        20, 30, 10, 0, 0, 10, 30, 20,
+        20, 20, 0, 0, 0, 0, 20, 20,
+        -10, -20, -20, -20, -20, -20, -20, -10,
+        -20, -30, -30, -40, -40, -30, -30, -20,
+        -30, -40, -40, -50, -50, -40, -40, -30,
+        -30, -40, -40, -50, -50, -40, -40, -30,
+        -30, -40, -40, -50, -50, -40, -40, -30,
+        -30, -40, -40, -50, -50, -40, -40, -30
+    };
+
+    for (int i = 0; i < 64; i++){
+        if (board[i] == 'P'){
+            score_white += pawn_scores[i];
+            white_pawn_count++;
+        }
+        if (board[i] == 'N'){
+            score_white += knight_scores[i];
+            white_knight_count++;
+        }
+        if (board[i] == 'B'){
+            score_white += bishop_scores[i];
+            white_bishop_count++;
+        }
+        if (board[i] == 'R'){
+            score_white += rook_scores[i];
+            white_rook_count++;
+        }
+        if (board[i] == 'Q'){
+            score_white += queen_scores[i];
+            white_queen_count++;
+        }
+        if (board[i] == 'K'){
+            score_white += king_scores[i];
+            white_king_count++;
+        }
+        if (board[i] == 'p'){
+            score_black += pawn_scores[63 - i];
+            black_pawn_count++;
+        }
+        if (board[i] == 'n'){
+            score_black += knight_scores[63 - i];
+            black_knight_count++;
+        }
+        if (board[i] == 'b'){
+            score_black += bishop_scores[63 - i];
+            black_bishop_count++;
+        }
+        if (board[i] == 'r'){
+            score_black += rook_scores[63 - i];
+            black_rook_count++;
+        }
+        if (board[i] == 'q'){
+            score_black += queen_scores[63 - i];
+            black_queen_count++;
+        }
+        if (board[i] == 'k'){
+            score_black += king_scores[63 - i];
+            black_king_count++;
+        }
+    }
+
+    score_white = 100 * (white_pawn_count + white_knight_count + white_bishop_count + white_rook_count + white_queen_count + white_king_count) + score_white;
+    score_black = 100 * (black_pawn_count + black_knight_count + black_bishop_count + black_rook_count + black_queen_count + black_king_count) + score_black;
+    
+    if (side == 'w'){
+        return score_white - score_black;
+    }
+    else {
+        return score_black - score_white;
+    }
+}
+
 
 // Function to print the board
 void print_board() {
