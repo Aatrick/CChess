@@ -22,6 +22,15 @@ uint64_t black_kings = 0x1000000000000000;
 // Global board state
 char board[64];
 
+// Track if the king and rooks have moved
+int white_king_moved = 0;
+int white_rook_kingside_moved = 0;
+int white_rook_queenside_moved = 0;
+int black_king_moved = 0;
+int black_rook_kingside_moved = 0;
+int black_rook_queenside_moved = 0;
+
+
 // Helper function to place pieces on the board
 void place_pieces(char* board, uint64_t bitboard, char piece) {
     for (int i = 0; i < 64; i++) {
@@ -71,6 +80,77 @@ int val_in_array(int val, int *arr, size_t n){
             return 1;
         }
     }
+    return 0;
+}
+
+// Function to check if a square is under attack
+int is_square_under_attack(int square, char attacking_side) {
+    int rank = square / 8;
+    int file = square % 8;
+
+    // Check for pawn attacks
+    if (attacking_side == 'w') {
+        if (rank > 0 && file > 0 && board[63 - (square - 9)] == 'p') return 1;
+        if (rank > 0 && file < 7 && board[63 - (square - 7)] == 'p') return 1;
+    } else {
+        if (rank < 7 && file > 0 && board[63 - (square + 7)] == 'P') return 1;
+        if (rank < 7 && file < 7 && board[63 - (square + 9)] == 'P') return 1;
+    }
+
+    // Check for knight attacks
+    int knight_moves[] = {17, 15, 10, 6, -6, -10, -15, -17};
+    for (int i = 0; i < 8; i++) {
+        int target_square = square + knight_moves[i];
+        if (target_square >= 0 && target_square < 64) {
+            if (attacking_side == 'w' && board[63 - target_square] == 'n') return 1;
+            if (attacking_side == 'b' && board[63 - target_square] == 'N') return 1;
+        }
+    }
+    // Check for bishop/queen attacks (diagonals)
+    int bishop_moves[] = {9, 7, -7, -9};
+    for (int i = 0; i < 4; i++) {
+        int target_square = square;
+        while (1) {
+            target_square += bishop_moves[i];
+            if (target_square < 0 || target_square >= 64) break;
+            if (board[63 - target_square] != '.') {
+                if (attacking_side == 'w' && (board[63 - target_square] == 'b' || board[63 - target_square] == 'q')) return 1;
+                if (attacking_side == 'b' && (board[63 - target_square] == 'B' || board[63 - target_square] == 'Q')) return 1;
+                break;
+            }
+        }
+    }
+
+    // Check for rook/queen attacks (files and ranks)
+    int rook_moves[] = {8, -8, 1, -1};
+    for (int i = 0; i < 4; i++) {
+        int target_square = square;
+        while (1) {
+            target_square += rook_moves[i];
+            if (target_square < 0 || target_square >= 64) break;
+            if (board[63 - target_square] != '.') {
+                if (attacking_side == 'w' && (board[63 - target_square] == 'r' || board[63 - target_square] == 'q')) return 1;
+                if (attacking_side == 'b' && (board[63 - target_square] == 'R' || board[63 - target_square] == 'Q')) return 1;
+                break;
+            }
+        }
+    }
+    // Check for king attacks
+    int king_moves[] = {1, -1, 8, -8, 9, 7, -7, -9};
+    for (int i = 0; i < 8; i++) {
+        int target_square = square + king_moves[i];
+        if (target_square >= 0 && target_square < 64) {
+            if (attacking_side == 'w' && board[63 - target_square] == 'k') return 1;
+            if (attacking_side == 'b' && board[63 - target_square] == 'K') return 1;
+        }
+    }
+
+    return 0;
+}
+
+// Function to check if the king is in check
+int is_king_in_check(char king) {
+    // you would need to check all possible attacks from the opponent's pieces
     return 0;
 }
 
@@ -323,8 +403,49 @@ void move_piece(const char* current_position, const char* next_position) {
                 }
             }
             // KING
-            if (board[63 - current_index] == 'k' || board[63 - current_index] == 'K'){
-                
+            if (board[63 - current_index] == 'k' || board[63 - current_index] == 'K'){// TODO: Rock the king
+                int circle[] = {current_index + 1, current_index - 1, current_index + 8, current_index + 9, current_index + 7, current_index - 9, current_index - 8, current_index - 7};
+                if (val_in_array(next_index, circle, 8) == 1){
+                    board[63 - next_index] = board[63 - current_index];
+                    board[63 - current_index] = '.';
+                } // King side castling
+                if (current_index == chess_to_bitboard_index("E8") && next_index == chess_to_bitboard_index("G8") && board[63 - current_index] == 'k' && board[63 - next_index] == '.' && board[63 - chess_to_bitboard_index("F8")] == '.' && board[63 - chess_to_bitboard_index("H8")] == 'r' && black_king_moved == 0 && black_rook_kingside_moved == 0 && is_square_under_attack(chess_to_bitboard_index("F8"), 'w') == 0 && is_square_under_attack(chess_to_bitboard_index("G8"), 'w') == 0){
+                    board[63 - next_index] = board[63 - current_index];
+                    board[63 - current_index] = '.';
+                    board[63 - chess_to_bitboard_index("F8")] = board[63 - chess_to_bitboard_index("H8")];
+                    board[63 - chess_to_bitboard_index("H8")] = '.';
+                    black_king_moved = 1;
+                    black_rook_kingside_moved = 1;
+                } // Queen side castling
+                if (current_index == chess_to_bitboard_index("E8") && next_index == chess_to_bitboard_index("C8") && board[63 - current_index] == 'k' && board[63 - next_index] == '.' && board[63 - chess_to_bitboard_index("D8")] == '.' && board[63 - chess_to_bitboard_index("A8")] == 'r' && board[63 - chess_to_bitboard_index("B8")] == '.' && black_king_moved == 0 && black_rook_queenside_moved == 0, is_square_under_attack(chess_to_bitboard_index("D8"), 'w') == 0 && is_square_under_attack(chess_to_bitboard_index("C8"), 'w') == 0){
+                    board[63 - next_index] = board[63 - current_index];
+                    board[63 - current_index] = '.';
+                    board[63 - chess_to_bitboard_index("D8")] = board[63 - chess_to_bitboard_index("A8")];
+                    board[63 - chess_to_bitboard_index("A8")] = '.';
+                    black_king_moved = 1;
+                    black_rook_queenside_moved = 1;
+                } // King side castling
+                if (current_index == chess_to_bitboard_index("E1") && next_index == chess_to_bitboard_index("G1") && board[63 - current_index] == 'K' && board[63 - next_index] == '.' && board[63 - chess_to_bitboard_index("F1")] == '.' && board[63 - chess_to_bitboard_index("H1")] == 'R' && white_king_moved == 0 && white_rook_kingside_moved == 0 && is_square_under_attack(chess_to_bitboard_index("F1"), 'b') == 0 && is_square_under_attack(chess_to_bitboard_index("G1"), 'b') == 0){
+                    board[63 - next_index] = board[63 - current_index];
+                    board[63 - current_index] = '.';
+                    board[63 - chess_to_bitboard_index("F1")] = board[63 - chess_to_bitboard_index("H1")];
+                    board[63 - chess_to_bitboard_index("H1")] = '.';
+                    white_king_moved = 1;
+                    white_rook_kingside_moved = 1;
+                } // Queen side castling
+                if (current_index == chess_to_bitboard_index("E1") && next_index == chess_to_bitboard_index("C1") && board[63 - current_index] == 'K' && board[63 - next_index] == '.' && board[63 - chess_to_bitboard_index("D1")] == '.' && board[63 - chess_to_bitboard_index("A1")] == 'R' && board[63 - chess_to_bitboard_index("B1")] == '.' && white_king_moved == 0 && white_rook_queenside_moved == 0, is_square_under_attack(chess_to_bitboard_index("D1"), 'b') == 0 && is_square_under_attack(chess_to_bitboard_index("C1"), 'b') == 0){
+                    board[63 - next_index] = board[63 - current_index];
+                    board[63 - current_index] = '.';
+                    board[63 - chess_to_bitboard_index("D1")] = board[63 - chess_to_bitboard_index("A1")];
+                    board[63 - chess_to_bitboard_index("A1")] = '.';
+                    white_king_moved = 1;
+                    white_rook_queenside_moved = 1;
+                } else {
+                    printf("Illegal move\n\n");
+                }
+                else {
+                    printf("Illegal move\n\n");
+                }
             }
         }
     }
