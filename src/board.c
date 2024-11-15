@@ -2,6 +2,8 @@
 #include <stdint.h>
 #include <string.h>
 #include <ctype.h>
+#include <stdlib.h>
+#include <stddef.h>
 #include "../include/board.h"
 
 // Define bitboards for each piece type and side
@@ -21,6 +23,8 @@ uint64_t black_kings = 0x1000000000000000;
 
 // Global board state
 char board[64];
+char temp_board[64];
+char board_memory[64];
 
 // Track if the king and rooks have moved
 int white_king_moved = 0;
@@ -75,23 +79,12 @@ int chess_to_bitboard_index(const char* position) {
     return number_index * 8 + letter_index;
 }
 
-
-int val_in_array(int val, int *arr, size_t n){
-    for (size_t i = 0; i<n; i++){
-        if(arr[i] == val){
-            return 1;
-        }
-    }
-    return 0;
-}
-
-
 // Function to check if a square is under attack
-int is_square_under_attack(int square, char attacking_side) {
+// Helper function to check for pawn attacks
+int is_pawn_attack(int square, char attacking_side) {
     int rank = square / 8;
     int file = square % 8;
 
-    // Check for pawn attacks
     if (attacking_side == 'w') {
         if (rank > 0 && file > 0 && board[63 - (square - 9)] == 'p') return 1;
         if (rank > 0 && file < 7 && board[63 - (square - 7)] == 'p') return 1;
@@ -99,8 +92,11 @@ int is_square_under_attack(int square, char attacking_side) {
         if (rank < 7 && file > 0 && board[63 - (square + 7)] == 'P') return 1;
         if (rank < 7 && file < 7 && board[63 - (square + 9)] == 'P') return 1;
     }
+    return 0;
+}
 
-    // Check for knight attacks
+// Helper function to check for knight attacks
+int is_knight_attack(int square, char attacking_side) {
     int knight_moves[] = {17, 15, 10, 6, -6, -10, -15, -17};
     for (int i = 0; i < 8; i++) {
         int target_square = square + knight_moves[i];
@@ -109,7 +105,11 @@ int is_square_under_attack(int square, char attacking_side) {
             if (attacking_side == 'b' && board[63 - target_square] == 'N') return 1;
         }
     }
-    // Check for bishop/queen attacks (diagonals)
+    return 0;
+}
+
+// Helper function to check for bishop or queen attacks (diagonals)
+int is_bishop_or_queen_attack(int square, char attacking_side) {
     int bishop_moves[] = {9, 7, -7, -9};
     for (int i = 0; i < 4; i++) {
         int target_square = square;
@@ -123,8 +123,11 @@ int is_square_under_attack(int square, char attacking_side) {
             }
         }
     }
+    return 0;
+}
 
-    // Check for rook/queen attacks (files and ranks)
+// Helper function to check for rook or queen attacks (files and ranks)
+int is_rook_or_queen_attack(int square, char attacking_side) {
     int rook_moves[] = {8, -8, 1, -1};
     for (int i = 0; i < 4; i++) {
         int target_square = square;
@@ -138,7 +141,11 @@ int is_square_under_attack(int square, char attacking_side) {
             }
         }
     }
-    // Check for king attacks
+    return 0;
+}
+
+// Helper function to check for king attacks
+int is_king_attack(int square, char attacking_side) {
     int king_moves[] = {1, -1, 8, -8, 9, 7, -7, -9};
     for (int i = 0; i < 8; i++) {
         int target_square = square + king_moves[i];
@@ -147,445 +154,328 @@ int is_square_under_attack(int square, char attacking_side) {
             if (attacking_side == 'b' && board[63 - target_square] == 'K') return 1;
         }
     }
-
     return 0;
 }
 
+// Function to check if a square is under attack
+int is_square_under_attack(int square, char attacking_side) {
+    if (is_pawn_attack(square, attacking_side)) return 1;
+    if (is_knight_attack(square, attacking_side)) return 1;
+    if (is_bishop_or_queen_attack(square, attacking_side)) return 1;
+    if (is_rook_or_queen_attack(square, attacking_side)) return 1;
+    if (is_king_attack(square, attacking_side)) return 1;
+    return 0;
+}
 
+// Helper function to check if a value is in an array
+int val_in_array(int val, int *arr, size_t n) {
+    for (size_t i = 0; i < n; i++) {
+        if (arr[i] == val) {
+            return 1;
+        }
+    }
+    return 0;
+}
 
-// Function to move a piece on the board
-void move_piece(const char* current_position, const char* next_position) {
+// Helper function to check if two pieces are of the same color
+int is_same_color(char piece1, char piece2) {
+    return (isupper(piece1) && isupper(piece2)) || (islower(piece1) && islower(piece2));
+}
+
+// Helper function to check if the path is clear for sliding pieces (rook, bishop, queen)
+int is_path_clear(int current_index, int next_index, const char* board, int step) {
+    for (int i = current_index + step; i != next_index; i += step) {
+        if (board[63 - i] != '.') {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+// Helper function to validate pawn moves
+int is_valid_pawn_move(int current_index, int next_index, const char* board) { // TODO: fix pawn going through pieces, en passant, promotion
+    int end_line[] = {63, 62, 61, 60, 59, 58, 57, 56, 0, 1, 2, 3, 4, 5, 6, 7};
+    int starters[] = {8, 9, 10, 11, 12, 13, 14, 15, 55, 54, 53, 52, 51, 50, 49, 48};
+
+    if (board[63 - next_index] != '.' && 
+        (63 - next_index == (63 - current_index) - 7 || 63 - next_index == (63 - current_index) - 9 || 
+         63 - next_index == (63 - current_index) + 7 || 63 - next_index == (63 - current_index) + 9)) {
+        return 1;
+    } else if (board[63 - next_index] == '.' && 
+               (63 - next_index == (63 - current_index) - 8 || 63 - next_index == (63 - current_index) + 8)) {
+        return 1;
+    } else if (val_in_array(current_index, starters, 16) && board[63 - next_index] == '.' && 
+               (63 - next_index == (63 - current_index) - 16 || 63 - next_index == (63 - current_index) + 16)) {
+        return 1;
+    } else if (val_in_array(next_index, end_line, 16) && board[63 - next_index] == '.' && 
+               (63 - next_index == (63 - current_index) - 8 || 63 - next_index == (63 - current_index) + 8)) {
+        return 1;
+    } else {
+        return 0;
+    }
+}
+
+// Helper function to validate rook moves
+int is_valid_rook_move(int current_index, int next_index, const char* board) {
+    int vertical[] = {8, 16, 24, 32, 40, 48, 56, 64, -8, -16, -24, -32, -40, -48, -56, -64};
+    int horizontal[] = {1, 2, 3, 4, 5, 6, 7, -1, -2, -3, -4, -5, -6, -7};
+
+    if (val_in_array(next_index - current_index, vertical, 16)) {
+        return is_path_clear(current_index, next_index, board, 8) || is_path_clear(current_index, next_index, board, -8);
+    } else if (val_in_array(next_index - current_index, horizontal, 16)) {
+        return is_path_clear(current_index, next_index, board, 1) || is_path_clear(current_index, next_index, board, -1);
+    } else {
+        return 0;
+    }
+}
+
+// Helper function to validate knight moves
+int is_valid_knight_move(int current_index, int next_index) {
+    int circle[] = {17, 15, -17, -15, 6, -6, 10, -10};
+    return val_in_array(next_index - current_index, circle, 8);
+}
+
+// Helper function to validate bishop moves
+int is_valid_bishop_move(int current_index, int next_index, const char* board) {
+    int left_top[] = {9, 18, 27, 36, 45, 54, 63};
+    int right_top[] = {7, 14, 21, 28, 35, 42, 49, 56, 63};
+    int left_bot[] = {-7, -14, -21, -28, -35, -42, -49, -56, -63};
+    int right_bot[] = {-9, -18, -27, -36, -45, -54, -63};
+
+    if (val_in_array(next_index - current_index, left_top, 7)) {
+        return is_path_clear(current_index, next_index, board, 9);
+    } else if (val_in_array(next_index - current_index, right_top, 9)) {
+        return is_path_clear(current_index, next_index, board, 7);
+    } else if (val_in_array(next_index - current_index, left_bot, 9)) {
+        return is_path_clear(current_index, next_index, board, -7);
+    } else if (val_in_array(next_index - current_index, right_bot, 7)) {
+        return is_path_clear(current_index, next_index, board, -9);
+    } else {
+        return 0;
+    }
+}
+
+// Helper function to validate queen moves
+int is_valid_queen_move(int current_index, int next_index, const char* board) {
+    return is_valid_rook_move(current_index, next_index, board) || is_valid_bishop_move(current_index, next_index, board);
+}
+
+// Helper function to validate king moves
+int is_valid_king_move(int current_index, int next_index, const char* board) {
+    int king_moves[] = {1, -1, 8, -8, 9, 7, -7, -9};
+    return val_in_array(next_index - current_index, king_moves, 8);
+}
+
+int is_legal_move(const char* current_position, const char* next_position, const char* board) {
     int current_index = chess_to_bitboard_index(current_position);
     int next_index = chess_to_bitboard_index(next_position);
-    if (current_index != -1 && next_index != -1) {//let's play by the rules
-        if (isupper(board[63 - next_index]) && isupper(board[63 - current_index]) || islower(board[63 - next_index]) && islower(board[63 - current_index])){
-            printf("illegal move\n\n");
-        }
-        else {
-            // PAWNS
-            if (board[63 - current_index] == 'p' || board[63 - current_index] == 'P') {
-                int end_line[] = {63,62,61,60,59,58,57,56,0,1,2,3,4,5,6,7};
-                if (board[63 - next_index] != '.' && ((63-next_index == (63-current_index) - 7 || 63-next_index == (63-current_index) - 9 || 63-next_index == (63-current_index) + 7 || 63-next_index == (63-current_index) + 9))){
-                    if (val_in_array(next_index, end_line, 16)){
-                        if (board[63 - current_index] == 'p'){
-                            board[63 - next_index] = 'q';
-                        }
-                        else {
-                            board[63 - next_index] = 'Q';
-                        }
-                        board[63 - current_index] = '.';
-                    }
-                    else {
-                        board[63 - next_index] = board[63 - current_index];
-                        board[63 - current_index] = '.';
-                    }
-                }
-                if (board[63 - next_index] == '.' && ((63-next_index == (63-current_index) - 8) || (63-next_index == (63-current_index) + 8))){
-                    if (val_in_array(next_index, end_line, 16)){
-                        if (board[63 - current_index] == 'p'){
-                            board[63 - next_index] = 'q';
-                        }
-                        else {
-                            board[63 - next_index] = 'Q';
-                        }
-                        board[63 - current_index] = '.';
-                    }
-                    else {
-                        board[63 - next_index] = board[63 - current_index];
-                        board[63 - current_index] = '.';
-                    }
-                }
-                int starters[] = {8,9,10,11,12,13,14,15,55,54,53,52,51,50,49,48};
-                if ((val_in_array(current_index, starters, 16) == 1) && board[63 - next_index] == '.' && ((63-next_index == (63-current_index) - 16) || (63-next_index == (63-current_index) + 16))){
-                    board[63 - next_index] = board[63 - current_index];
-                    board[63 - current_index] = '.';
-                }
-                else {
-                    printf("Illegal move\n\n");
-                }
-            }
-            // ROOKS
-            if (board[63 - current_index] == 'r' || board[63 - current_index] == 'R'){
-                int vertical[] = {current_index + 8, current_index + 16, current_index + 24, current_index + 32, current_index + 40, current_index + 48, current_index + 56, current_index + 64, current_index - 8, current_index - 16, current_index - 24, current_index - 32, current_index - 40, current_index - 48, current_index - 56, current_index - 64};
-                int horizontal[] = {current_index + 8, current_index + 1, current_index + 2, current_index + 3, current_index + 4, current_index + 5, current_index + 6, current_index + 7, current_index - 8, current_index - 1, current_index - 2, current_index - 3, current_index - 4, current_index - 5, current_index - 6, current_index - 7};
-                if (val_in_array(next_index, vertical, 16) == 1 || val_in_array(next_index, horizontal, 16)){
-                    int shift_curr = (current_index % 8);
-                    int shift_next = (next_index % 8);
-                    int all_g = 0;
-                    if (current_index < next_index){
-                        for (int i = current_index + 8; i < next_index; i += 8){
-                            if (board[63 - i] != '.'){
-                                all_g = 1;
-                            }
-                        }
-                    }
-                    if (shift_next > shift_curr){
-                            for (int i = current_index + 1; i < next_index; i++){
-                                if (board[63 - i] != '.'){
-                                    all_g = 1;
-                                }
-                            }
-                        }
-                    if (shift_next < shift_curr){
-                        for (int i = current_index - 1; i < next_index; i--){
-                            if (board[63 - i] != '.'){
-                                all_g = 1;
-                            }
-                        }
-                    }
-                    if (current_index > next_index) {
-                        for (int i = current_index - 8; i > next_index; i -= 8){
-                            if (board[63 - i] != '.'){
-                                all_g = 1;
-                            }
-                        }
-                    }
-                    if (all_g == 0){
-                        board[63 - next_index] = board[63 - current_index];
-                        board[63 - current_index] = '.';
-                    }
-                    else {
-                        printf("Illegal move\n\n");
-                    }
-                }
-            }
-            // KNIGHTS
-            if (board[63 - current_index] == 'n' || board[63 - current_index] == 'N'){
-                int circle[] = {current_index + 17, current_index + 15, current_index - 17, current_index - 15, current_index + 6, current_index - 6, current_index + 10, current_index - 10};
-                if (val_in_array(next_index, circle, 8) == 1){
-                    board[63 - next_index] = board[63 - current_index];
-                    board[63 - current_index] = '.';
-                } else {
-                    printf("Illegal move\n\n");
-                }
-            }
-            // BISHOPS
-            if (board[63 - current_index] == 'b' || board[63 - current_index] == 'B'){
-                int left_top[] = {current_index + 9, current_index + 18, current_index + 27, current_index + 36, current_index + 45, current_index + 54, current_index + 63};
-                int right_top[] = {current_index + 7, current_index + 14, current_index + 21, current_index + 28, current_index + 35, current_index + 42, current_index + 49, current_index + 56, current_index + 63};
-                int left_bot[] = {current_index - 7, current_index - 14, current_index - 21, current_index - 28, current_index - 35, current_index - 42, current_index - 49, current_index - 56, current_index - 63};
-                int right_bot[] = {current_index - 9, current_index - 18, current_index - 27, current_index - 36, current_index - 45, current_index - 54, current_index - 63};
-                
-                if (val_in_array(next_index, left_top, 7) == 1 || val_in_array(next_index, right_top, 9) == 1 || val_in_array(next_index, left_bot, 9) == 1 || val_in_array(next_index, right_bot, 7)){
-                    int shift_curr = (current_index % 8);
-                    int shift_next = (next_index % 8);
-                    int all_g = 0; // if a piece is in the way, this will be 1
-                    if (current_index < next_index){
-                        if (shift_next > shift_curr){
-                            for (int i = current_index + 9; i < next_index; i += 9){
-                                if (board[63 - i] != '.'){
-                                    all_g = 1;
-                                }
-                            }
-                        } if (shift_next < shift_curr){
-                            for (int i = current_index + 7; i < next_index; i += 7){
-                                if (board[63 - i] != '.'){
-                                    all_g = 1;
-                                }
-                            }
-                        }
-                    } else {
-                        if (shift_next > shift_curr){
-                            for (int i = current_index - 7; i > next_index; i -= 7){
-                                if (board[63 - i] != '.'){
-                                    all_g = 1;
-                                }
-                            }
-                        } if (shift_next < shift_curr){
-                            for (int i = current_index - 9; i > next_index; i -= 9){
-                                if (board[63 - i] != '.'){
-                                    all_g = 1;
-                                }
-                            }
-                        }
-                    } if (all_g == 0){
-                        board[63 - next_index] = board[63 - current_index];
-                        board[63 - current_index] = '.';
-                    } else {
-                    printf("Illegal move\n\n");
-                    }
-                } else {
-                    printf("Illegal move\n\n");
-                }
-            }
-            // QUEEN
-            if (board[63 - current_index] == 'q' || board[63 - current_index] == 'Q') {
-                int vertical[] = {current_index + 8, current_index + 16, current_index + 24, current_index + 32, current_index + 40, current_index + 48, current_index + 56, current_index + 64, current_index - 8, current_index - 16, current_index - 24, current_index - 32, current_index - 40, current_index - 48, current_index - 56, current_index - 64};
-                int horizontal[] = {current_index + 1, current_index + 2, current_index + 3, current_index + 4, current_index + 5, current_index + 6, current_index + 7, current_index - 1, current_index - 2, current_index - 3, current_index - 4, current_index - 5, current_index - 6, current_index - 7};
-                int left_top[] = {current_index + 9, current_index + 18, current_index + 27, current_index + 36, current_index + 45, current_index + 54, current_index + 63};
-                int right_top[] = {current_index + 7, current_index + 14, current_index + 21, current_index + 28, current_index + 35, current_index + 42, current_index + 49, current_index + 56, current_index + 63};
-                int left_bot[] = {current_index - 7, current_index - 14, current_index - 21, current_index - 28, current_index - 35, current_index - 42, current_index - 49, current_index - 56, current_index - 63};
-                int right_bot[] = {current_index - 9, current_index - 18, current_index - 27, current_index - 36, current_index - 45, current_index - 54, current_index - 63};
+    if (current_index == -1 || next_index == -1) {
+        return 0;
+    }
 
-                if (val_in_array(next_index, vertical, 16) == 1 || val_in_array(next_index, horizontal, 16) == 1 || val_in_array(next_index, left_top, 7) == 1 || val_in_array(next_index, right_top, 9) == 1 || val_in_array(next_index, left_bot, 9) == 1 || val_in_array(next_index, right_bot, 7)) {
-                    int shift_curr = (current_index % 8);
-                    int shift_next = (next_index % 8);
-                    int all_g = 0;
+    if (is_same_color(board[63 - current_index], board[63 - next_index])) {
+        return 0;
+    }
 
-                    // Check vertical movement
-                    if (current_index < next_index && shift_curr == shift_next) {
-                        for (int i = current_index + 8; i < next_index; i += 8) {
-                            if (board[63 - i] != '.') {
-                                all_g = 1;
-                                break;
-                            }
-                        }
-                    } else if (current_index > next_index && shift_curr == shift_next) {
-                        for (int i = current_index - 8; i > next_index; i -= 8) {
-                            if (board[63 - i] != '.') {
-                                all_g = 1;
-                                break;
-                            }
-                        }
-                    }
+    char piece = board[63 - current_index];
+    switch (tolower(piece)) {
+        case 'p':
+            return is_valid_pawn_move(current_index, next_index, board);
+        case 'r':
+            return is_valid_rook_move(current_index, next_index, board);
+        case 'n':
+            return is_valid_knight_move(current_index, next_index);
+        case 'b':
+            return is_valid_bishop_move(current_index, next_index, board);
+        case 'q':
+            return is_valid_queen_move(current_index, next_index, board);
+        case 'k':
+            return is_valid_king_move(current_index, next_index, board);
+        default:
+            return 0;
+    }
+}
 
-                    // Check horizontal movement
-                    if (shift_next > shift_curr && current_index / 8 == next_index / 8) {
-                        for (int i = current_index + 1; i < next_index; i++) {
-                            if (board[63 - i] != '.') {
-                                all_g = 1;
-                                break;
-                            }
-                        }
-                    } else if (shift_next < shift_curr && current_index / 8 == next_index / 8) {
-                        for (int i = current_index - 1; i > next_index; i--) {
-                            if (board[63 - i] != '.') {
-                                all_g = 1;
-                                break;
-                            }
-                        }
-                    }
-
-                    // Check diagonal movement
-                    if (current_index < next_index) {
-                        if (shift_next > shift_curr) {
-                            for (int i = current_index + 9; i < next_index; i += 9) {
-                                if (board[63 - i] != '.') {
-                                    all_g = 1;
-                                    break;
-                                }
-                            }
-                        } else if (shift_next < shift_curr) {
-                            for (int i = current_index + 7; i < next_index; i += 7) {
-                                if (board[63 - i] != '.') {
-                                    all_g = 1;
-                                    break;
-                                }
-                            }
-                        }
-                    } else {
-                        if (shift_next > shift_curr) {
-                            for (int i = current_index - 7; i > next_index; i -= 7) {
-                                if (board[63 - i] != '.') {
-                                    all_g = 1;
-                                    break;
-                                }
-                            }
-                        } else if (shift_next < shift_curr) {
-                            for (int i = current_index - 9; i > next_index; i -= 9) {
-                                if (board[63 - i] != '.') {
-                                    all_g = 1;
-                                    break;
-                                }
-                            }
-                        }
-                    }
-
-                    if (all_g == 0) {
-                        board[63 - next_index] = board[63 - current_index];
-                        board[63 - current_index] = '.';
-                    } else {
-                        printf("Illegal move\n\n");
-                    }
-                } else {
-                    printf("Illegal move\n\n");
-                }
-            }
-            // KING
-            if (board[63 - current_index] == 'k' || board[63 - current_index] == 'K'){
-                // King side castling
-                if (is_square_under_attack(chess_to_bitboard_index("E8"), 'b') == 0 && (current_index == chess_to_bitboard_index("E8") && next_index == chess_to_bitboard_index("G8") && board[63 - current_index] == 'k' && board[63 - next_index] == '.' && board[63 - chess_to_bitboard_index("F8")] == '.' && board[63 - chess_to_bitboard_index("H8")] == 'r' && black_king_moved == 0 && black_rook_kingside_moved == 0 && is_square_under_attack(chess_to_bitboard_index("F8"), 'b') == 0 && is_square_under_attack(chess_to_bitboard_index("G8"), 'b') == 0)){
-                    board[63 - next_index] = board[63 - current_index];
-                    board[63 - current_index] = '.';
-                    board[63 - chess_to_bitboard_index("F8")] = board[63 - chess_to_bitboard_index("H8")];
-                    board[63 - chess_to_bitboard_index("H8")] = '.';
-                    black_king_moved = 1;
-                    black_rook_kingside_moved = 1;
-                } // Queen side castling
-                if (is_square_under_attack(chess_to_bitboard_index("E8"), 'b') == 0 && (current_index == chess_to_bitboard_index("E8") && next_index == chess_to_bitboard_index("C8") && board[63 - current_index] == 'k' && board[63 - next_index] == '.' && board[63 - chess_to_bitboard_index("D8")] == '.' && board[63 - chess_to_bitboard_index("A8")] == 'r' && board[63 - chess_to_bitboard_index("B8")] == '.' && black_king_moved == 0 && black_rook_queenside_moved == 0, is_square_under_attack(chess_to_bitboard_index("D8"), 'b') == 0 && is_square_under_attack(chess_to_bitboard_index("C8"), 'b') == 0)){
-                    board[63 - next_index] = board[63 - current_index];
-                    board[63 - current_index] = '.';
-                    board[63 - chess_to_bitboard_index("D8")] = board[63 - chess_to_bitboard_index("A8")];
-                    board[63 - chess_to_bitboard_index("A8")] = '.';
-                    black_king_moved = 1;
-                    black_rook_queenside_moved = 1;
-                } // King side castling
-                if (is_square_under_attack(chess_to_bitboard_index("E1"), 'w') == 0 && (current_index == chess_to_bitboard_index("E1") && next_index == chess_to_bitboard_index("G1") && board[63 - current_index] == 'K' && board[63 - next_index] == '.' && board[63 - chess_to_bitboard_index("F1")] == '.' && board[63 - chess_to_bitboard_index("H1")] == 'R' && white_king_moved == 0 && white_rook_kingside_moved == 0 && is_square_under_attack(chess_to_bitboard_index("F1"), 'w') == 0 && is_square_under_attack(chess_to_bitboard_index("G1"), 'w') == 0)){
-                    board[63 - next_index] = board[63 - current_index];
-                    board[63 - current_index] = '.';
-                    board[63 - chess_to_bitboard_index("F1")] = board[63 - chess_to_bitboard_index("H1")];
-                    board[63 - chess_to_bitboard_index("H1")] = '.';
-                    white_king_moved = 1;
-                    white_rook_kingside_moved = 1;
-                } // Queen side castling
-                if (is_square_under_attack(chess_to_bitboard_index("E1"), 'w') == 0 && (current_index == chess_to_bitboard_index("E1") && next_index == chess_to_bitboard_index("C1") && board[63 - current_index] == 'K' && board[63 - next_index] == '.' && board[63 - chess_to_bitboard_index("D1")] == '.' && board[63 - chess_to_bitboard_index("A1")] == 'R' && board[63 - chess_to_bitboard_index("B1")] == '.' && white_king_moved == 0 && white_rook_queenside_moved == 0, is_square_under_attack(chess_to_bitboard_index("D1"), 'w') == 0 && is_square_under_attack(chess_to_bitboard_index("C1"), 'w') == 0)){
-                    board[63 - next_index] = 'K';
-                    board[63 - current_index] = '.';
-                    board[63 - chess_to_bitboard_index("D1")] = board[63 - chess_to_bitboard_index("A1")];
-                    board[63 - chess_to_bitboard_index("A1")] = '.';
-                    white_king_moved = 1;
-                    white_rook_queenside_moved = 1;
-                } 
-                int circle[] = {current_index + 1, current_index - 1, current_index + 8, current_index - 8, current_index + 9, current_index + 7, current_index - 7, current_index - 9};
-                if (val_in_array(next_index, circle, 8) == 1){
-                    board[63 - next_index] = board[63 - current_index];
-                    board[63 - current_index] = '.';
-                } else {
-                    printf("Illegal move\n\n");
-                }
-            }
+void move_piece(const char* current_position, const char* next_position, char board[]) {
+    int current_index = chess_to_bitboard_index(current_position);
+    int next_index = chess_to_bitboard_index(next_position);
+    if (current_index != -1 && next_index != -1) {
+        if (is_legal_move(current_position, next_position, board)) {
+            board[63 - next_index] = board[63 - current_index];
+            board[63 - current_index] = '.';
+        } else {
+            printf("Illegal move\n\n");
         }
     }
 }
 
+void move_piece_user(const char* current_position, const char* next_position){
+    move_piece(current_position, next_position, board);
+}
 
-int evaluate(const char side){
-    int score_white = 0;
-    int score_black = 0;
-    int white_pawn_count = 0;
-    int white_knight_count = 0;
-    int white_bishop_count = 0;
-    int white_rook_count = 0;
-    int white_queen_count = 0;
-    int white_king_count = 0;
+int piece_values[128] = {0};
+int piece_square_table[128][64] = {0};
 
-    int black_pawn_count = 0;
-    int black_knight_count = 0;
-    int black_bishop_count = 0;
-    int black_rook_count = 0;
-    int black_queen_count = 0;
-    int black_king_count = 0;
+// Initialize piece values and piece-square tables
+void initialize_evaluation() {
+    piece_values['P'] = 100;
+    piece_values['N'] = 320;
+    piece_values['B'] = 330;
+    piece_values['R'] = 500;
+    piece_values['Q'] = 900;
+    piece_values['K'] = 20000;
+    piece_values['p'] = 100;
+    piece_values['n'] = 320;
+    piece_values['b'] = 330;
+    piece_values['r'] = 500;
+    piece_values['q'] = 900;
+    piece_values['k'] = 20000;
 
-    // apply a score for the position of the pieces by using a board of scores and for the number of pieces
-    int pawn_scores[64] = {
+    // Piece-square tables for positional bonuses
+    int pawn_table[64] = {
         0, 0, 0, 0, 0, 0, 0, 0,
-        50, 50, 50, 50, 50, 50, 50, 50,
-        10, 10, 20, 30, 30, 20, 10, 10,
-        5, 5, 10, 25, 25, 10, 5, 5,
-        0, 0, 0, 20, 20, 0, 0, 0,
-        5, -5, -10, 0, 0, -10, -5, 5,
-        5, 10, 10, -20, -20, 10, 10, 5,
+        5, 5, 5, 5, 5, 5, 5, 5,
+        1, 1, 2, 3, 3, 2, 1, 1,
+        0.5, 0.5, 1, 2.5, 2.5, 1, 0.5, 0.5,
+        0, 0, 0, 2, 2, 0, 0, 0,
+        0.5, -0.5, -1, 0, 0, -1, -0.5, 0.5,
+        0.5, 1, 1, -2, -2, 1, 1, 0.5,
         0, 0, 0, 0, 0, 0, 0, 0
     };
-    int knight_scores[64] = {
-        -50, -40, -30, -30, -30, -30, -40, -50,
-        -40, -20, 0, 0, 0, 0, -20, -40,
-        -30, 0, 10, 15, 15, 10, 0, -30,
-        -30, 5, 15, 20, 20, 15, 5, -30,
-        -30, 0, 15, 20, 20, 15, 0, -30,
-        -30, 5, 10, 15, 15, 10, 5, -30,
-        -40, -20, 0, 5, 5, 0, -20, -40,
-        -50, -40, -30, -30, -30, -30, -40, -50
+
+    int knight_table[64] = {
+        -5, -4, -3, -3, -3, -3, -4, -5,
+        -4, -2, 0, 0, 0, 0, -2, -4,
+        -3, 0, 1, 1.5, 1.5, 1, 0, -3,
+        -3, 0.5, 1.5, 2, 2, 1.5, 0.5, -3,
+        -3, 0, 1.5, 2, 2, 1.5, 0, -3,
+        -3, 0.5, 1, 1.5, 1.5, 1, 0.5, -3,
+        -4, -2, 0, 0.5, 0.5, 0, -2, -4,
+        -5, -4, -3, -3, -3, -3, -4, -5
     };
-    int bishop_scores[64] = {
-        -20, -10, -10, -10, -10, -10, -10, -20,
-        -10, 0, 0, 0, 0, 0, 0, -10,
-        -10, 0, 5, 10, 10, 5, 0, -10,
-        -10, 5, 5, 10, 10, 5, 5, -10,
-        -10, 0, 10, 10, 10, 10, 0, -10,
-        -10, 10, 10, 10, 10, 10, 10, -10,
-        -10, 5, 0, 0, 0, 0, 5, -10,
-        -20, -10, -10, -10, -10, -10, -10, -20
+
+    int bishop_table[64] = {
+        -2, -1, -1, -1, -1, -1, -1, -2,
+        -1, 0, 0, 0, 0, 0, 0, -1,
+        -1, 0, 0.5, 1, 1, 0.5, 0, -1,
+        -1, 0.5, 0.5, 1, 1, 0.5, 0.5, -1,
+        -1, 0, 1, 1, 1, 1, 0, -1,
+        -1, 1, 1, 1, 1, 1, 1, -1,
+        -1, 0.5, 0, 0, 0, 0, 0.5, -1,
+        -2, -1, -1, -1, -1, -1, -1, -2
     };
-    int rook_scores[64] = {
+
+    int rook_table[64] = {
         0, 0, 0, 0, 0, 0, 0, 0,
-        5, 10, 10, 10, 10, 10, 10, 5,
-        -5, 0, 0, 0, 0, 0, 0, -5,
-        -5, 0, 0, 0, 0, 0, 0, -5,
-        -5, 0, 0, 0, 0, 0, 0, -5,
-        -5, 0, 0, 0, 0, 0, 0, -5,
-        -5, 0, 0, 0, 0, 0, 0, -5,
-        0, 0, 0, 5, 5, 0, 0, 0
-    };
-    int queen_scores[64] = {
-        -20, -10, -10, -5, -5, -10, -10, -20,
-        -10, 0, 0, 0, 0, 0, 0, -10,
-        -10, 0, 5, 5, 5, 5, 0, -10,
-        -5, 0, 5, 5, 5, 5, 0, -5,
-        0, 0, 5, 5, 5, 5, 0, -5,
-        -10, 5, 5, 5, 5, 5, 0, -10,
-        -10, 0, 5, 0, 0, 0, 0, -10,
-        -20, -10, -10, -5, -5, -10, -10, -20
-    };
-    int king_scores[64] = {
-        20, 30, 10, 0, 0, 10, 30, 20,
-        20, 20, 0, 0, 0, 0, 20, 20,
-        -10, -20, -20, -20, -20, -20, -20, -10,
-        -20, -30, -30, -40, -40, -30, -30, -20,
-        -30, -40, -40, -50, -50, -40, -40, -30,
-        -30, -40, -40, -50, -50, -40, -40, -30,
-        -30, -40, -40, -50, -50, -40, -40, -30,
-        -30, -40, -40, -50, -50, -40, -40, -30
+        0.5, 1, 1, 1, 1, 1, 1, 0.5,
+        -0.5, 0, 0, 0, 0, 0, 0, -0.5,
+        -0.5, 0, 0, 0, 0, 0, 0, -0.5,
+        -0.5, 0, 0, 0, 0, 0, 0, -0.5,
+        -0.5, 0, 0, 0, 0, 0, 0, -0.5,
+        -0.5, 0, 0, 0, 0, 0, 0, -0.5,
+        0, 0, 0, 0.5, 0.5, 0, 0, 0
     };
 
-    for (int i = 0; i < 64; i++){
-        if (board[i] == 'P'){
-            score_white += pawn_scores[i];
-            white_pawn_count++;
-        }
-        if (board[i] == 'N'){
-            score_white += knight_scores[i];
-            white_knight_count++;
-        }
-        if (board[i] == 'B'){
-            score_white += bishop_scores[i];
-            white_bishop_count++;
-        }
-        if (board[i] == 'R'){
-            score_white += rook_scores[i];
-            white_rook_count++;
-        }
-        if (board[i] == 'Q'){
-            score_white += queen_scores[i];
-            white_queen_count++;
-        }
-        if (board[i] == 'K'){
-            score_white += king_scores[i];
-            white_king_count++;
-        }
-        if (board[i] == 'p'){
-            score_black += pawn_scores[63 - i];
-            black_pawn_count++;
-        }
-        if (board[i] == 'n'){
-            score_black += knight_scores[63 - i];
-            black_knight_count++;
-        }
-        if (board[i] == 'b'){
-            score_black += bishop_scores[63 - i];
-            black_bishop_count++;
-        }
-        if (board[i] == 'r'){
-            score_black += rook_scores[63 - i];
-            black_rook_count++;
-        }
-        if (board[i] == 'q'){
-            score_black += queen_scores[63 - i];
-            black_queen_count++;
-        }
-        if (board[i] == 'k'){
-            score_black += king_scores[63 - i];
-            black_king_count++;
+    int queen_table[64] = {
+        -2, -1, -1, -0.5, -0.5, -1, -1, -2,
+        -1, 0, 0, 0, 0, 0, 0, -1,
+        -1, 0, 0.5, 0.5, 0.5, 0.5, 0, -1,
+        -0.5, 0, 0.5, 0.5, 0.5, 0.5, 0, -0.5,
+        0, 0, 0.5, 0.5, 0.5, 0.5, 0, -0.5,
+        -1, 0.5, 0.5, 0.5, 0.5, 0.5, 0, -1,
+        -1, 0, 0.5, 0, 0, 0, 0, -1,
+        -2, -1, -1, -0.5, -0.5, -1, -1, -2
+    };
+
+    int king_table[64] = {
+        -3, -4, -4, -5, -5, -4, -4, -3,
+        -3, -4, -4, -5, -5, -4, -4, -3,
+        -3, -4, -4, -5, -5, -4, -4, -3,
+        -3, -4, -4, -5, -5, -4, -4, -3,
+        -2, -3, -3, -4, -4, -3, -3, -2,
+        -1, -2, -2, -2, -2, -2, -2, -1,
+        2, 2, 0, 0, 0, 0, 2, 2,
+        2, 3, 1, 0, 0, 1, 3, 2
+    };
+
+    for (int i = 0; i < 64; i++) {
+        piece_square_table['P'][i] = pawn_table[i];
+        piece_square_table['N'][i] = knight_table[i];
+        piece_square_table['B'][i] = bishop_table[i];
+        piece_square_table['R'][i] = rook_table[i];
+        piece_square_table['Q'][i] = queen_table[i];
+        piece_square_table['K'][i] = king_table[i];
+        piece_square_table['p'][i] = pawn_table[63 - i];
+        piece_square_table['n'][i] = knight_table[63 - i];
+        piece_square_table['b'][i] = bishop_table[63 - i];
+        piece_square_table['r'][i] = rook_table[63 - i];
+        piece_square_table['q'][i] = queen_table[63 - i];
+        piece_square_table['k'][i] = king_table[63 - i];
+    }
+}
+
+int evaluate(const char side, const char* board) {
+    int score_white = 0;
+    int score_black = 0;
+
+    // Calculate the total score for both sides
+    for (int i = 0; i < 64; i++) {
+        char piece = board[i];
+        if (piece >= 'A' && piece <= 'Z') {
+            score_white += piece_values[piece];
+            score_white += piece_square_table[piece][i];
+        } else if (piece >= 'a' && piece <= 'z') {
+            score_black += piece_values[piece];
+            score_black += piece_square_table[piece][i];
         }
     }
 
-    score_white = 100 * (white_pawn_count + white_knight_count + white_bishop_count + white_rook_count + white_queen_count + white_king_count) + score_white;
-    score_black = 100 * (black_pawn_count + black_knight_count + black_bishop_count + black_rook_count + black_queen_count + black_king_count) + score_black;
-    
-    if (side == 'w'){
+    // Add bonuses for pieces protecting other pieces
+    for (int i = 0; i < 64; i++) {
+        char piece = board[i];
+        if (piece == '.') continue;
+
+        int rank = i / 8;
+        int file = i % 8;
+        int directions[] = {1, -1, 8, -8, 9, -9, 7, -7};
+        for (int j = 0; j < 8; j++) {
+            int target_square = i + directions[j];
+            if (target_square >= 0 && target_square < 64) {
+                char target_piece = board[target_square];
+                if (piece >= 'A' && piece <= 'Z' && target_piece >= 'A' && target_piece <= 'Z') {
+                    score_white += 10;
+                } else if (piece >= 'a' && piece <= 'z' && target_piece >= 'a' && target_piece <= 'z') {
+                    score_black += 10;
+                }
+            }
+        }
+    }
+
+    // Add penalties for pieces attacking other pieces
+    for (int i = 0; i < 64; i++) {
+        char piece = board[i];
+        if (piece == '.') continue;
+
+        int rank = i / 8;
+        int file = i % 8;
+        int directions[] = {1, -1, 8, -8, 9, -9, 7, -7};
+        for (int j = 0; j < 8; j++) {
+            int target_square = i + directions[j];
+            if (target_square >= 0 && target_square < 64) {
+                char target_piece = board[target_square];
+                if (piece >= 'A' && piece <= 'Z' && target_piece >= 'a' && target_piece <= 'z') {
+                    score_white += piece_values[target_piece] / 10;
+                } else if (piece >= 'a' && piece <= 'z' && target_piece >= 'A' && target_piece <= 'Z') {
+                    score_black += piece_values[target_piece] / 10;
+                }
+            }
+        }
+    }
+
+    // Return the difference between the scores of the two sides
+    if (side == 'w') {
         return score_white - score_black;
-    }
-    else {
+    } else {
         return score_black - score_white;
     }
 }
@@ -601,4 +491,178 @@ void print_board() {
         printf("\n");
     }
     printf("\n");
+}
+
+void print_temp_board() {
+    for (int rank = 0; rank < 8; rank++) {
+        for (int file = 0; file < 8; file++) {
+            int square = rank * 8 + file;
+            printf("%c ", temp_board[square]);
+        }
+        printf("\n");
+    }
+    printf("\n");
+}
+
+// Helper function to convert a board index to a chess notation string
+void index_to_chess_notation(int index, char* notation) {
+    int rank = index / 8;
+    int file = index % 8;
+    notation[0] = 'A' + file;
+    notation[1] = '1' + rank;
+    notation[2] = '\0';
+}
+
+int min(int a, int b){
+    if (a < b){
+        return a;
+    }
+    else {
+        return b;
+    }
+}
+
+int max(int a, int b){
+    if (a > b){
+        return a;
+    }
+    else {
+        return b;
+    }
+}
+
+// each node is a move and the children are the possible moves
+// for each move, make a copy of the board, make the move, evaluate the board, store the move and then undo the move,
+// when the best move is found, make the move on the real board
+
+// Helper function to check if a piece belongs to the current side
+int is_valid_piece(char piece, char side) {
+    if (side == 'w') {
+        return piece == 'P' || piece == 'N' || piece == 'B' || piece == 'R' || piece == 'Q' || piece == 'K';
+    } else {
+        return piece == 'p' || piece == 'n' || piece == 'b' || piece == 'r' || piece == 'q' || piece == 'k';
+    }
+}
+
+// Helper function to check if a target square is valid for a move
+int is_valid_target(char target, char side) {
+    if (side == 'w') {
+        return target == '.' || islower(target);
+    } else {
+        return target == '.' || isupper(target);
+    }
+}
+
+int minimax(int depth, int alpha, int beta, char side);
+
+void copy_board(){
+    for (int i = 0; i<64; i++){
+        temp_board[i]=board[i];
+    }
+}
+
+void copy_temp_board(){
+    for (int i = 0; i<64; i++){
+        board[i]=temp_board[i];
+    }
+}
+
+void reset_to_memory(){
+    for (int i = 0; i<64; i++){
+        board[i]=board_memory[i];
+    }
+}
+
+void update_board_memory(){
+    for (int i = 0; i<64; i++){
+        board_memory[i]=board[i];
+    }
+}
+
+// Helper function to evaluate a move
+// TODO: add en passant, castling, promotion
+// TODO: also test all the moves the enemy can make when evaluating a move
+int evaluate_move(int i, int j, int depth, int alpha, int beta, char side) {
+    char current_position[3];
+    char next_position[3];
+    index_to_chess_notation(i, current_position);
+    index_to_chess_notation(j, next_position);
+    if (is_legal_move(current_position, next_position, board)) {
+        copy_board();
+        move_piece(current_position, next_position, temp_board);
+        return minimax(depth - 1, alpha, beta, (side == 'w') ? 'b' : 'w');
+    }
+    return (side == 'w') ? -1000000 : 1000000;
+}
+
+int minimax(int depth, int alpha, int beta, char side) {
+    if (depth == 0) {
+        return evaluate(side, temp_board);
+    }
+
+    int best_eval = (side == 'w') ? -1000000 : 1000000;
+
+    for (int i = 0; i < 64; i++) {
+        if (is_valid_piece(board[i], side)) {
+            for (int j = 0; j < 64; j++) {
+                if (is_valid_target(board[j], side)) {
+                    int eval = evaluate_move(i, j, depth, alpha, beta, side);
+                    if (side == 'w') {
+                        best_eval = max(best_eval, eval);
+                        alpha = max(alpha, eval);
+                    } else {
+                        best_eval = min(best_eval, eval);
+                        beta = min(beta, eval);
+                    }
+                    if (beta <= alpha) {
+                        break;
+                    }
+                }
+            }
+        }
+    }
+    return best_eval;
+}
+
+void make_move(char side) {
+    char next_position[3];
+    char current_position[3];
+    int best_eval = (side == 'w') ? -1000000 : 1000000; // Initialize best_eval based on the side
+    int best_move[2] = {-1, -1}; // Initialize best_move to invalid positions
+    update_board_memory();
+
+    for (int i = 0; i < 64; i++) {
+        if (is_valid_piece(board[i], side)) {
+            for (int j = 0; j < 64; j++) {
+                if (is_valid_target(board[j], side)) {
+                    index_to_chess_notation(i, current_position);
+                    index_to_chess_notation(j, next_position);
+                    if (is_legal_move(current_position, next_position, board)) {
+                        printf("Checking move %s to %s\n", current_position, next_position);
+                        copy_board();
+                        move_piece(current_position, next_position, temp_board);
+                        int eval = minimax(6, -1000000, 1000000, (side == 'w') ? 'b' : 'w');
+                        print_temp_board();
+                        copy_temp_board(); // Restore the board from temp_board
+                        
+                        if ((side == 'w' && eval > best_eval) || (side == 'b' && eval < best_eval)) {
+                            best_eval = eval;
+                            best_move[0] = i;
+                            best_move[1] = j;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (best_move[0] != -1 && best_move[1] != -1) {
+        index_to_chess_notation(best_move[0], current_position);
+        index_to_chess_notation(best_move[1], next_position);
+        printf("Making move %s to %s\n", current_position, next_position);
+        reset_to_memory();
+        move_piece(current_position, next_position, board);
+    } else {
+        printf("No valid moves found\n");
+    }
 }
