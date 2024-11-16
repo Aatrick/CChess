@@ -213,6 +213,7 @@ int is_valid_pawn_move(int current_index, int next_index, const char* board) { /
     } else {
         return 0;
     }
+    
 }
 
 // Helper function to validate rook moves
@@ -261,6 +262,7 @@ int is_valid_queen_move(int current_index, int next_index, const char* board) {
 }
 
 // Helper function to validate king moves
+// TODO: castling
 int is_valid_king_move(int current_index, int next_index, const char* board) {
     int king_moves[] = {1, -1, 8, -8, 9, 7, -7, -9};
     return val_in_array(next_index - current_index, king_moves, 8);
@@ -299,7 +301,15 @@ int is_legal_move(const char* current_position, const char* next_position, const
 void move_piece(const char* current_position, const char* next_position, char board[]) {
     int current_index = chess_to_bitboard_index(current_position);
     int next_index = chess_to_bitboard_index(next_position);
-    if (current_index != -1 && next_index != -1) {
+    if (current_index != -1 && next_index != -1) {// promotion
+        int end_line[] = {63, 62, 61, 60, 59, 58, 57, 56, 0, 1, 2, 3, 4, 5, 6, 7};
+        if (board[63 - current_index] == 'P' && next_index < 8 && val_in_array(next_index, end_line, 16)) {
+            board[63 - next_index] = 'Q';
+            board[63 - current_index] = '.';
+        } else if (board[63 - current_index] == 'p' && next_index > 55 && val_in_array(next_index, end_line, 16)) {
+            board[63 - next_index] = 'q';
+            board[63 - current_index] = '.';
+        }
         if (is_legal_move(current_position, next_position, board)) {
             board[63 - next_index] = board[63 - current_index];
             board[63 - current_index] = '.';
@@ -313,172 +323,7 @@ void move_piece_user(const char* current_position, const char* next_position){
     move_piece(current_position, next_position, board);
 }
 
-int piece_values[128] = {0};
-int piece_square_table[128][64] = {0};
 
-// Initialize piece values and piece-square tables
-void initialize_evaluation() {
-    piece_values['P'] = 100;
-    piece_values['N'] = 320;
-    piece_values['B'] = 330;
-    piece_values['R'] = 500;
-    piece_values['Q'] = 900;
-    piece_values['K'] = 20000;
-    piece_values['p'] = 100;
-    piece_values['n'] = 320;
-    piece_values['b'] = 330;
-    piece_values['r'] = 500;
-    piece_values['q'] = 900;
-    piece_values['k'] = 20000;
-
-    // Piece-square tables for positional bonuses
-    int pawn_table[64] = {
-        0, 0, 0, 0, 0, 0, 0, 0,
-        5, 5, 5, 5, 5, 5, 5, 5,
-        1, 1, 2, 3, 3, 2, 1, 1,
-        0.5, 0.5, 1, 2.5, 2.5, 1, 0.5, 0.5,
-        0, 0, 0, 2, 2, 0, 0, 0,
-        0.5, -0.5, -1, 0, 0, -1, -0.5, 0.5,
-        0.5, 1, 1, -2, -2, 1, 1, 0.5,
-        0, 0, 0, 0, 0, 0, 0, 0
-    };
-
-    int knight_table[64] = {
-        -5, -4, -3, -3, -3, -3, -4, -5,
-        -4, -2, 0, 0, 0, 0, -2, -4,
-        -3, 0, 1, 1.5, 1.5, 1, 0, -3,
-        -3, 0.5, 1.5, 2, 2, 1.5, 0.5, -3,
-        -3, 0, 1.5, 2, 2, 1.5, 0, -3,
-        -3, 0.5, 1, 1.5, 1.5, 1, 0.5, -3,
-        -4, -2, 0, 0.5, 0.5, 0, -2, -4,
-        -5, -4, -3, -3, -3, -3, -4, -5
-    };
-
-    int bishop_table[64] = {
-        -2, -1, -1, -1, -1, -1, -1, -2,
-        -1, 0, 0, 0, 0, 0, 0, -1,
-        -1, 0, 0.5, 1, 1, 0.5, 0, -1,
-        -1, 0.5, 0.5, 1, 1, 0.5, 0.5, -1,
-        -1, 0, 1, 1, 1, 1, 0, -1,
-        -1, 1, 1, 1, 1, 1, 1, -1,
-        -1, 0.5, 0, 0, 0, 0, 0.5, -1,
-        -2, -1, -1, -1, -1, -1, -1, -2
-    };
-
-    int rook_table[64] = {
-        0, 0, 0, 0, 0, 0, 0, 0,
-        0.5, 1, 1, 1, 1, 1, 1, 0.5,
-        -0.5, 0, 0, 0, 0, 0, 0, -0.5,
-        -0.5, 0, 0, 0, 0, 0, 0, -0.5,
-        -0.5, 0, 0, 0, 0, 0, 0, -0.5,
-        -0.5, 0, 0, 0, 0, 0, 0, -0.5,
-        -0.5, 0, 0, 0, 0, 0, 0, -0.5,
-        0, 0, 0, 0.5, 0.5, 0, 0, 0
-    };
-
-    int queen_table[64] = {
-        -2, -1, -1, -0.5, -0.5, -1, -1, -2,
-        -1, 0, 0, 0, 0, 0, 0, -1,
-        -1, 0, 0.5, 0.5, 0.5, 0.5, 0, -1,
-        -0.5, 0, 0.5, 0.5, 0.5, 0.5, 0, -0.5,
-        0, 0, 0.5, 0.5, 0.5, 0.5, 0, -0.5,
-        -1, 0.5, 0.5, 0.5, 0.5, 0.5, 0, -1,
-        -1, 0, 0.5, 0, 0, 0, 0, -1,
-        -2, -1, -1, -0.5, -0.5, -1, -1, -2
-    };
-
-    int king_table[64] = {
-        -3, -4, -4, -5, -5, -4, -4, -3,
-        -3, -4, -4, -5, -5, -4, -4, -3,
-        -3, -4, -4, -5, -5, -4, -4, -3,
-        -3, -4, -4, -5, -5, -4, -4, -3,
-        -2, -3, -3, -4, -4, -3, -3, -2,
-        -1, -2, -2, -2, -2, -2, -2, -1,
-        2, 2, 0, 0, 0, 0, 2, 2,
-        2, 3, 1, 0, 0, 1, 3, 2
-    };
-
-    for (int i = 0; i < 64; i++) {
-        piece_square_table['P'][i] = pawn_table[i];
-        piece_square_table['N'][i] = knight_table[i];
-        piece_square_table['B'][i] = bishop_table[i];
-        piece_square_table['R'][i] = rook_table[i];
-        piece_square_table['Q'][i] = queen_table[i];
-        piece_square_table['K'][i] = king_table[i];
-        piece_square_table['p'][i] = pawn_table[63 - i];
-        piece_square_table['n'][i] = knight_table[63 - i];
-        piece_square_table['b'][i] = bishop_table[63 - i];
-        piece_square_table['r'][i] = rook_table[63 - i];
-        piece_square_table['q'][i] = queen_table[63 - i];
-        piece_square_table['k'][i] = king_table[63 - i];
-    }
-}
-
-int evaluate(const char side, const char* board) {
-    int score_white = 0;
-    int score_black = 0;
-
-    // Calculate the total score for both sides
-    for (int i = 0; i < 64; i++) {
-        char piece = board[i];
-        if (piece >= 'A' && piece <= 'Z') {
-            score_white += piece_values[piece];
-            score_white += piece_square_table[piece][i];
-        } else if (piece >= 'a' && piece <= 'z') {
-            score_black += piece_values[piece];
-            score_black += piece_square_table[piece][i];
-        }
-    }
-
-    // Add bonuses for pieces protecting other pieces
-    for (int i = 0; i < 64; i++) {
-        char piece = board[i];
-        if (piece == '.') continue;
-
-        int rank = i / 8;
-        int file = i % 8;
-        int directions[] = {1, -1, 8, -8, 9, -9, 7, -7};
-        for (int j = 0; j < 8; j++) {
-            int target_square = i + directions[j];
-            if (target_square >= 0 && target_square < 64) {
-                char target_piece = board[target_square];
-                if (piece >= 'A' && piece <= 'Z' && target_piece >= 'A' && target_piece <= 'Z') {
-                    score_white += 10;
-                } else if (piece >= 'a' && piece <= 'z' && target_piece >= 'a' && target_piece <= 'z') {
-                    score_black += 10;
-                }
-            }
-        }
-    }
-
-    // Add penalties for pieces attacking other pieces
-    for (int i = 0; i < 64; i++) {
-        char piece = board[i];
-        if (piece == '.') continue;
-
-        int rank = i / 8;
-        int file = i % 8;
-        int directions[] = {1, -1, 8, -8, 9, -9, 7, -7};
-        for (int j = 0; j < 8; j++) {
-            int target_square = i + directions[j];
-            if (target_square >= 0 && target_square < 64) {
-                char target_piece = board[target_square];
-                if (piece >= 'A' && piece <= 'Z' && target_piece >= 'a' && target_piece <= 'z') {
-                    score_white += piece_values[target_piece] / 10;
-                } else if (piece >= 'a' && piece <= 'z' && target_piece >= 'A' && target_piece <= 'Z') {
-                    score_black += piece_values[target_piece] / 10;
-                }
-            }
-        }
-    }
-
-    // Return the difference between the scores of the two sides
-    if (side == 'w') {
-        return score_white - score_black;
-    } else {
-        return score_black - score_white;
-    }
-}
 
 
 // Function to print the board
@@ -579,9 +424,179 @@ void update_board_memory(){
     }
 }
 
+
+int piece_values[128] = {0};
+int piece_square_table[128][64] = {0};
+
+// Initialize piece values and piece-square tables
+void initialize_evaluation() {
+    piece_values['P'] = 100;
+    piece_values['N'] = 320;
+    piece_values['B'] = 330;
+    piece_values['R'] = 500;
+    piece_values['Q'] = 900;
+    piece_values['K'] = 20000;
+    piece_values['p'] = 100;
+    piece_values['n'] = 320;
+    piece_values['b'] = 330;
+    piece_values['r'] = 500;
+    piece_values['q'] = 900;
+    piece_values['k'] = 20000;
+
+    // Piece-square tables for positional bonuses, symmetrically mirrored
+    int pawn_table[] = {
+        0,  0,  0,  0,  0,  0,  0,  0,
+        50, 50, 50, 50, 50, 50, 50, 50,
+        10, 10, 20, 30, 30, 20, 10, 10,
+        5,  5, 10, 25, 25, 10,  5,  5,
+        0,  0,  0, 20, 20,  0,  0,  0,
+        5, -5,-10,  0,  0,-10, -5,  5,
+        5, 10, 10,-20,-20, 10, 10,  5,
+        0,  0,  0,  0,  0,  0,  0,  0
+    };
+
+    int knight_table[] = {
+        -50,-40,-30,-30,-30,-30,-40,-50,
+        -40,-20,  0,  0,  0,  0,-20,-40,
+        -30,  0, 10, 15, 15, 10,  0,-30,
+        -30,  5, 15, 20, 20, 15,  5,-30,
+        -30,  0, 15, 20, 20, 15,  0,-30,
+        -30,  5, 10, 15, 15, 10,  5,-30,
+        -40,-20,  0,  5,  5,  0,-20,-40,
+        -50,-40,-30,-30,-30,-30,-40,-50
+    };
+
+    int bishop_table[] = {
+        -20,-10,-10,-10,-10,-10,-10,-20,
+        -10,  0,  0,  0,  0,  0,  0,-10,
+        -10,  0,  5, 10, 10,  5,  0,-10,
+        -10,  5,  5, 10, 10,  5,  5,-10,
+        -10,  0, 10, 10, 10, 10,  0,-10,
+        -10, 10, 10, 10, 10, 10, 10,-10,
+        -10,  5,  0,  0,  0,  0,  5,-10,
+        -20,-10,-10,-10,-10,-10,-10,-20
+    };
+
+    int rook_table[] = {
+        0,  0,  0,  0,  0,  0,  0,  0,
+        5, 10, 10, 10, 10, 10, 10,  5,
+       -5,  0,  0,  0,  0,  0,  0, -5,
+       -5,  0,  0,  0,  0,  0,  0, -5,
+       -5,  0,  0,  0,  0,  0,  0, -5,
+       -5,  0,  0,  0,  0,  0,  0, -5,
+       -5,  0,  0,  0,  0,  0,  0, -5,
+        0,  0,  0,  5,  5,  0,  0,  0
+    };
+
+    int queen_table[] = {
+       -20,-10,-10, -5, -5,-10,-10,-20,
+       -10,  0,  0,  0,  0,  0,  0,-10,
+       -10,  0,  5,  5,  5,  5,  0,-10,
+        -5,  0,  5,  5,  5,  5,  0, -5,
+         0,  0,  5,  5,  5,  5,  0, -5,
+       -10,  5,  5,  5,  5,  5,  0,-10,
+       -10,  0,  5,  0,  0,  0,  0,-10,
+       -20,-10,-10, -5, -5,-10,-10,-20
+    };
+
+    int king_table[] = {
+        -20, -10, -10, -5, -5, -10, -10, -20,
+        -10,  0,   0,  0,  0,   0,   0, -10,
+        -10,  0,   5,  10,  10,   5,   0, -10,
+        -10,  5,   5,  10,  10,   5,   5, -10,
+        -10,  0,   10, 10,  10,  10,   0, -10,
+        -10,  10, 10, 10,  10,  10,  10, -10,
+        -10,  5,  0,  0,  0,  0,  5, -10,
+        -20, -10, -10, -5, -5, -10, -10, -20
+    };
+
+
+    for (int i = 0; i < 64; i++) {
+        piece_square_table['p'][i] = pawn_table[i];
+        piece_square_table['n'][i] = knight_table[i];
+        piece_square_table['b'][i] = bishop_table[i];
+        piece_square_table['r'][i] = rook_table[i];
+        piece_square_table['q'][i] = queen_table[i];
+        piece_square_table['k'][i] = king_table[i];
+        piece_square_table['P'][i] = pawn_table[63 - i];
+        piece_square_table['N'][i] = knight_table[63 - i];
+        piece_square_table['B'][i] = bishop_table[63 - i];
+        piece_square_table['R'][i] = rook_table[63 - i];
+        piece_square_table['Q'][i] = queen_table[63 - i];
+        piece_square_table['K'][i] = king_table[63 - i];
+    }
+}
+
+int evaluate(const char side, const char* board) {
+    int score_white = 0;
+    int score_black = 0;
+
+    // Calculate the total score for both sides
+    for (int i = 0; i < 64; i++) {
+        char piece = board[i];
+        if (piece >= 'A' && piece <= 'Z') {
+            score_white += piece_values[piece];
+            score_white += piece_square_table[piece][i];
+        } else if (piece >= 'a' && piece <= 'z') {
+            score_black += piece_values[piece];
+            score_black += piece_square_table[piece][i];
+        }
+    }
+
+    // Add bonuses for pieces protecting other pieces
+    for (int i = 0; i < 64; i++) {
+        char piece = board[i];
+        if (piece == '.') continue;
+
+        int rank = i / 8;
+        int file = i % 8;
+        int directions[] = {1, -1, 8, -8, 9, -9, 7, -7};
+        for (int j = 0; j < 8; j++) {
+            int target_square = i + directions[j];
+            if (target_square >= 0 && target_square < 64) {
+                char target_piece = board[target_square];
+                if (piece >= 'A' && piece <= 'Z' && target_piece >= 'A' && target_piece <= 'Z') {
+                    score_white += 10;
+                } else if (piece >= 'a' && piece <= 'z' && target_piece >= 'a' && target_piece <= 'z') {
+                    score_black += 10;
+                }
+            }
+        }
+    }
+
+    // Add penalties for pieces attacking other pieces
+    for (int i = 0; i < 64; i++) {
+        char piece = board[i];
+        if (piece == '.') continue;
+
+        int rank = i / 8;
+        int file = i % 8;
+        int directions[] = {1, -1, 8, -8, 9, -9, 7, -7};
+        for (int j = 0; j < 8; j++) {
+            int target_square = i + directions[j];
+            if (target_square >= 0 && target_square < 64) {
+                char target_piece = board[target_square];
+                if (piece >= 'A' && piece <= 'Z' && target_piece >= 'a' && target_piece <= 'z') {
+                    score_white += piece_values[target_piece] / 10;
+                } else if (piece >= 'a' && piece <= 'z' && target_piece >= 'A' && target_piece <= 'Z') {
+                    score_black += piece_values[target_piece] / 10;
+                }
+            }
+        }
+    }
+
+    // Return the difference between the scores of the two sides
+    if (side == 'w') {
+        return score_white - score_black;
+    } else {
+        return score_black - score_white;
+    }
+}
+
+
 // Helper function to evaluate a move
-// TODO: add en passant, castling, promotion
-// TODO: also test all the moves the enemy can make when evaluating a move
+void initialize_evaluation();
+
 int evaluate_move(int i, int j, int depth, int alpha, int beta, char side) {
     char current_position[3];
     char next_position[3];
@@ -590,14 +605,17 @@ int evaluate_move(int i, int j, int depth, int alpha, int beta, char side) {
     if (is_legal_move(current_position, next_position, board)) {
         copy_board();
         move_piece(current_position, next_position, temp_board);
-        return minimax(depth - 1, alpha, beta, (side == 'w') ? 'b' : 'w');
+        int eval = minimax(depth - 1, alpha, beta, (side == 'w') ? 'b' : 'w');
+        print_temp_board();
+        return eval;
     }
     return (side == 'w') ? -1000000 : 1000000;
 }
 
 int minimax(int depth, int alpha, int beta, char side) {
+    int current_eval = evaluate(side, temp_board);
     if (depth == 0) {
-        return evaluate(side, temp_board);
+        return current_eval;
     }
 
     int best_eval = (side == 'w') ? -1000000 : 1000000;
@@ -608,7 +626,7 @@ int minimax(int depth, int alpha, int beta, char side) {
                 if (is_valid_target(board[j], side)) {
                     int eval = evaluate_move(i, j, depth, alpha, beta, side);
                     if (side == 'w') {
-                        best_eval = max(best_eval, eval);
+                        best_eval = max(max(best_eval, eval), current_eval);
                         alpha = max(alpha, eval);
                     } else {
                         best_eval = min(best_eval, eval);
@@ -616,6 +634,12 @@ int minimax(int depth, int alpha, int beta, char side) {
                     }
                     if (beta <= alpha) {
                         break;
+                    }
+                    // use current_eval to determine if the move is good
+                    if (side == 'w' && eval > current_eval) {
+                        return eval;
+                    } else if (side == 'b' && eval < current_eval) {
+                        return eval;
                     }
                 }
             }
@@ -641,8 +665,7 @@ void make_move(char side) {
                         printf("Checking move %s to %s\n", current_position, next_position);
                         copy_board();
                         move_piece(current_position, next_position, temp_board);
-                        int eval = minimax(6, -1000000, 1000000, (side == 'w') ? 'b' : 'w');
-                        print_temp_board();
+                        int eval = minimax(4, -1000000, 1000000, (side == 'w') ? 'b' : 'w');
                         copy_temp_board(); // Restore the board from temp_board
                         
                         if ((side == 'w' && eval > best_eval) || (side == 'b' && eval < best_eval)) {

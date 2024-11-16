@@ -19,6 +19,7 @@ int main() {
         move_piece_user(current_position, next_position);
         print_board();
         printf("\n");
+        
     }
     return 0;
 }
