@@ -9,8 +9,9 @@ int main() {
     initialize_board();
     printf("Welcome to CChess!\n");
     print_board();
+    char best_move[2][3];
     while (1) {
-        make_move('b');
+        // make_move(2, 'w');
         print_board();
         char current_position[3];
         char next_position[3];
