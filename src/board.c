@@ -6,6 +6,8 @@
 #include <stddef.h>
 #include "../include/board.h"
 
+#define MAX_DEPTH 5
+
 // Define bitboards for each piece type and side
 uint64_t white_pawns = 0x000000000000FF00;
 uint64_t white_knights = 0x0000000000000042;
@@ -23,8 +25,6 @@ uint64_t black_kings = 0x1000000000000000;
 
 // Global board state
 char board[64];
-char board_memory[64];
-char temp_board[64];
 
 // Track if the king and rooks have moved
 int white_king_moved = 0;
@@ -719,18 +719,18 @@ void initialize_evaluation() {
 
 
     for (int i = 0; i < 64; i++) {
-        piece_square_table['p'][i] = pawn_table[i];
-        piece_square_table['n'][i] = knight_table[i];
-        piece_square_table['b'][i] = bishop_table[i];
-        piece_square_table['r'][i] = rook_table[i];
-        piece_square_table['q'][i] = queen_table[i];
-        piece_square_table['k'][i] = king_table[i];
-        piece_square_table['P'][i] = pawn_table[63 - i];
-        piece_square_table['N'][i] = knight_table[63 - i];
-        piece_square_table['B'][i] = bishop_table[63 - i];
-        piece_square_table['R'][i] = rook_table[63 - i];
-        piece_square_table['Q'][i] = queen_table[63 - i];
-        piece_square_table['K'][i] = king_table[63 - i];
+        piece_square_table['P'][i] = pawn_table[i];
+        piece_square_table['N'][i] = knight_table[i];
+        piece_square_table['B'][i] = bishop_table[i];
+        piece_square_table['R'][i] = rook_table[i];
+        piece_square_table['Q'][i] = queen_table[i];
+        piece_square_table['K'][i] = king_table[i];
+        piece_square_table['p'][i] = pawn_table[63 - i];
+        piece_square_table['n'][i] = knight_table[63 - i];
+        piece_square_table['b'][i] = bishop_table[63 - i];
+        piece_square_table['r'][i] = rook_table[63 - i];
+        piece_square_table['q'][i] = queen_table[63 - i];
+        piece_square_table['k'][i] = king_table[63 - i];
     }
 }
 
@@ -738,7 +738,6 @@ int evaluate(const char side, const char* board) {
     int score_white = 0;
     int score_black = 0;
 
-    // Calculate the total score for both sides
     for (int i = 0; i < 64; i++) {
         char piece = board[i];
         if (piece >= 'A' && piece <= 'Z') {
@@ -750,13 +749,10 @@ int evaluate(const char side, const char* board) {
         }
     }
 
-    // Add bonuses for pieces protecting other pieces
     for (int i = 0; i < 64; i++) {
         char piece = board[i];
         if (piece == '.') continue;
 
-        int rank = i / 8;
-        int file = i % 8;
         int directions[] = {1, -1, 8, -8, 9, -9, 7, -7};
         for (int j = 0; j < 8; j++) {
             int target_square = i + directions[j];
@@ -771,13 +767,10 @@ int evaluate(const char side, const char* board) {
         }
     }
 
-    // Add penalties for pieces attacking other pieces
     for (int i = 0; i < 64; i++) {
         char piece = board[i];
         if (piece == '.') continue;
 
-        int rank = i / 8;
-        int file = i % 8;
         int directions[] = {1, -1, 8, -8, 9, -9, 7, -7};
         for (int j = 0; j < 8; j++) {
             int target_square = i + directions[j];
@@ -792,7 +785,6 @@ int evaluate(const char side, const char* board) {
         }
     }
 
-    // Return the difference between the scores of the two sides
     if (side == 'w') {
         return score_white - score_black;
     } else {
@@ -805,67 +797,92 @@ int minimax(int depth, int alpha, int beta, char side);
 // Helper function to evaluate a move
 void initialize_evaluation();
 
+char board_memory[64]; // is used to reset the board to the current move state
+char temp_board[64]; // is used to simulate moves
+
+
 int minimax(int depth, int alpha, int beta, char side) {
     if (depth == 0) {
-        return evaluate(side, temp_board);
+        return evaluate(side, board);
     }
 
-    char next_position[3];
-    char current_position[3];
-
-    int best_eval = (side == 'w') ? -1000000 : 1000000; // Initialize best_eval based on the side
-    for (int i = 0; i < 64; i++) {
-        if (is_valid_piece(temp_board[i], side)) {
-            for (int j = 0; j < 64; j++) {
-                if (is_valid_target(temp_board[j], side)) {
-                    index_to_chess_notation(i, current_position);
-                    index_to_chess_notation(j, next_position);
-                    if (is_legal_move(current_position, next_position, temp_board)) {
-                        memcpy(temp_board, board, 64); // Copy the board to temp_board
-                        move_piece(current_position, next_position, temp_board);
-                        int eval = minimax(depth - 1, alpha, beta, (side == 'w') ? 'b' : 'w');
-                        if (side == 'w') {
-                            best_eval = max(best_eval, eval);
-                            alpha = max(alpha, eval);
-                        } else {
-                            best_eval = min(best_eval, eval);
-                            beta = min(beta, eval);
-                        }
-                        if (beta <= alpha) {
-                            break;
+    if (side == 'w') {
+        int max_eval = -1000000;
+        for (int i = 0; i < 64; i++) {
+            if (is_valid_piece(board[i], side)) {
+                for (int j = 0; j < 64; j++) {
+                    if (is_valid_target(board[j], side)) {
+                        char current_position[3];
+                        char next_position[3];
+                        index_to_chess_notation(i, current_position);
+                        index_to_chess_notation(j, next_position);
+                        if (is_legal_move(current_position, next_position, board)) {
+                            char temp_board[64];
+                            memcpy(temp_board, board, 64);
+                            move_piece(current_position, next_position, temp_board);
+                            int eval = minimax(depth - 1, alpha, beta, 'b');
+                            max_eval = (eval > max_eval) ? eval : max_eval;
+                            alpha = (alpha > eval) ? alpha : eval;
+                            if (beta <= alpha) {
+                                break;
+                            }
                         }
                     }
                 }
             }
         }
+        return max_eval;
+    } else {
+        int min_eval = 1000000;
+        for (int i = 0; i < 64; i++) {
+            if (is_valid_piece(board[i], side)) {
+                for (int j = 0; j < 64; j++) {
+                    if (is_valid_target(board[j], side)) {
+                        char current_position[3];
+                        char next_position[3];
+                        index_to_chess_notation(i, current_position);
+                        index_to_chess_notation(j, next_position);
+                        if (is_legal_move(current_position, next_position, board)) {
+                            char temp_board[64];
+                            memcpy(temp_board, board, 64);
+                            move_piece(current_position, next_position, temp_board);
+                            int eval = minimax(depth - 1, alpha, beta, 'w');
+                            min_eval = (eval < min_eval) ? eval : min_eval;
+                            beta = (beta < eval) ? beta : eval;
+                            if (beta <= alpha) {
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return min_eval;
     }
-
-    return best_eval;
 }
 
 void make_move(char side) {
-    char next_position[3];
-    char current_position[3];
-    int best_eval = (side == 'w') ? -1000000 : 1000000; // Initialize best_eval based on the side
-    int best_move[2] = {-1, -1}; // Initialize best_move to invalid positions
-    memcpy(board_memory, board, 64); // Save the current board state to board_memory
+    char best_move_from[3];
+    char best_move_to[3];
+    int best_eval = (side == 'w') ? -1000000 : 1000000;
 
     for (int i = 0; i < 64; i++) {
         if (is_valid_piece(board[i], side)) {
             for (int j = 0; j < 64; j++) {
                 if (is_valid_target(board[j], side)) {
+                    char current_position[3];
+                    char next_position[3];
                     index_to_chess_notation(i, current_position);
                     index_to_chess_notation(j, next_position);
                     if (is_legal_move(current_position, next_position, board)) {
-                        printf("Checking move %s to %s\n", current_position, next_position);
-                        memcpy(temp_board, board, 64); // Copy the board to temp_board
+                        char temp_board[64];
+                        memcpy(temp_board, board, 64);
                         move_piece(current_position, next_position, temp_board);
-                        int eval = minimax(5, -1000000, 1000000, (side == 'w') ? 'b' : 'w');
-                        
+                        int eval = minimax(MAX_DEPTH, -1000000, 1000000, (side == 'w') ? 'b' : 'w');
                         if ((side == 'w' && eval > best_eval) || (side == 'b' && eval < best_eval)) {
                             best_eval = eval;
-                            best_move[0] = i;
-                            best_move[1] = j;
+                            strcpy(best_move_from, current_position);
+                            strcpy(best_move_to, next_position);
                         }
                     }
                 }
@@ -873,12 +890,9 @@ void make_move(char side) {
         }
     }
 
-    if (best_move[0] != -1 && best_move[1] != -1) {
-        index_to_chess_notation(best_move[0], current_position);
-        index_to_chess_notation(best_move[1], next_position);
-        printf("Making move %s to %s\n", current_position, next_position);
-        memcpy(board, board_memory, 64); // Restore the board from board_memory
-        move_piece(current_position, next_position, board);
+    if (best_eval != (side == 'w' ? -1000000 : 1000000)) {
+        printf("Making move %s to %s\n", best_move_from, best_move_to);
+        move_piece(best_move_from, best_move_to, board);
     } else {
         printf("No valid moves found\n");
     }
