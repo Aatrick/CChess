@@ -11,7 +11,7 @@ int main() {
     print_board();
     char best_move[2][3];
     while (1) {
-        // make_move(2, 'w');
+        make_move('b');
         print_board();
         char current_position[3];
         char next_position[3];
